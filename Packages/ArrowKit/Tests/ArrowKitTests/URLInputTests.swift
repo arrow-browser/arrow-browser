@@ -26,6 +26,12 @@ struct URLInputTests {
         #expect(URLInput.resolve("a&b", engine: .duckDuckGo) == "https://duckduckgo.com/?q=a%26b")
     }
 
+    @Test func readsAddressesFromCommandLine() {
+        let arguments = ["github.com", "--remote-debugging-port=9222", "-AppleLanguages", "(en-US)",
+                         "-psn_0_12345", "https://example.org", "-NSDocumentRevisionsDebugMode", "YES"]
+        #expect(URLInput.commandLineAddresses(arguments) == ["github.com", "https://example.org"])
+    }
+
     @Test func buildsInstantLinkAddresses() {
         #expect(SearchEngine.google.topResultURL(for: "swift book") == "https://www.google.com/search?btnI=1&q=swift+book")
         #expect(SearchEngine.kagi.topResultURL(for: "swift") == "https://duckduckgo.com/?q=%5Cswift")

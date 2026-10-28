@@ -293,4 +293,25 @@ public enum URLInput: Equatable, Sendable {
         case let .search(query): engine.searchURL(for: query)
         }
     }
+
+    /// Addresses passed on the command line (`Arrow https://…`). Chromium
+    /// switches (`--flag`, `--flag=value`) are skipped, and so are Cocoa
+    /// defaults (`-AppleLanguages "(en)"`) together with their value.
+    public static func commandLineAddresses(_ arguments: some Sequence<String>) -> [String] {
+        var addresses: [String] = []
+        var skipsValue = false
+        for argument in arguments {
+            if skipsValue {
+                skipsValue = false
+            } else if argument.hasPrefix("--") {
+                continue
+            } else if argument.hasPrefix("-") {
+                // `-psn_…` (process serial number from older Finders) has no value.
+                skipsValue = !argument.hasPrefix("-psn_")
+            } else {
+                addresses.append(argument)
+            }
+        }
+        return addresses
+    }
 }

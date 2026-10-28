@@ -58,8 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         didFinishLaunching = true
         // URLs passed on the command line open as tabs (`Arrow https://…`).
-        let arguments = CommandLine.arguments.dropFirst().filter { !$0.hasPrefix("-") }
-        for argument in arguments {
+        for argument in URLInput.commandLineAddresses(CommandLine.arguments.dropFirst()) {
             window.openNewTab(URLInput.resolve(argument, engine: store.settings.searchEngine))
         }
         for url in pendingURLs { openExternal(url) }
