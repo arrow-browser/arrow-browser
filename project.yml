@@ -1,0 +1,199 @@
+name: Arrow
+options:
+  bundleIdPrefix: com.euskadi31
+  deploymentTarget:
+    macOS: "15.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+  groupSortPosition: top
+
+packages:
+  ArrowKit:
+    path: Packages/ArrowKit
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "15.0"
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: ""
+    ENABLE_HARDENED_RUNTIME: NO
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    DEAD_CODE_STRIPPING: YES
+    # CEF C API (Swift imports the `CEF` Clang module, see Sources/CEF).
+    CEF_ROOT: $(SRCROOT)/Vendor/cef
+    SWIFT_INCLUDE_PATHS: $(SRCROOT)/Sources/CEF
+    HEADER_SEARCH_PATHS: $(CEF_ROOT)
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+targetTemplates:
+  ChromiumHelper:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/ArrowHelper
+    settings:
+      base:
+        PRODUCT_NAME: "Arrow Helper${suffix}"
+        PRODUCT_BUNDLE_IDENTIFIER: "com.euskadi31.arrow.helper${bundleSuffix}"
+        INFOPLIST_FILE: Resources/Helper-Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+        # The helper loads the framework at runtime (after sandbox init),
+        # so it must not link it.
+        LD_RUNPATH_SEARCH_PATHS: ""
+
+targets:
+  Arrow:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/Arrow
+      - path: Resources/Assets.xcassets
+      - path: Resources/Arrow.sdef
+        buildPhase: resources
+      - path: Resources/AppIcons
+        type: folder
+        buildPhase: resources
+      - path: Resources/Sounds
+        type: folder
+        buildPhase: resources
+      - path: Resources/Arrow.entitlements
+        buildPhase: none
+    dependencies:
+      - package: ArrowKit
+      - framework: Vendor/cef/Release/Chromium Embedded Framework.framework
+        embed: false
+        link: true
+      - target: DockTilePlugIn
+        embed: true
+        codeSign: true
+        link: false
+        copy:
+          destination: plugins
+      - target: Arrow Helper
+        embed: true
+        codeSign: true
+        link: false
+        copy:
+          destination: frameworks
+      - target: Arrow Helper (GPU)
+        embed: true
+        codeSign: true
+        link: false
+        copy:
+          destination: frameworks
+      - target: Arrow Helper (Renderer)
+        embed: true
+        codeSign: true
+        link: false
+        copy:
+          destination: frameworks
+      - target: Arrow Helper (Plugin)
+        embed: true
+        codeSign: true
+        link: false
+        copy:
+          destination: frameworks
+      - target: Arrow Helper (Alerts)
+        embed: true
+        codeSign: true
+        link: false
+        copy:
+          destination: frameworks
+    settings:
+      base:
+        PRODUCT_NAME: Arrow
+        PRODUCT_BUNDLE_IDENTIFIER: com.euskadi31.arrow
+        INFOPLIST_FILE: Resources/Arrow-Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS: Resources/Arrow.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        FRAMEWORK_SEARCH_PATHS: $(CEF_ROOT)/Release
+        LD_RUNPATH_SEARCH_PATHS: "@executable_path/../Frameworks"
+        SWIFT_STRICT_CONCURRENCY: complete
+    preBuildScripts:
+      - name: Check CEF distribution
+        basedOnDependencyAnalysis: false
+        script: |
+          if [ ! -d "${CEF_ROOT}/Release/Chromium Embedded Framework.framework" ]; then
+            echo "error: CEF is missing. Run ./scripts/fetch-cef.sh"
+            exit 1
+          fi
+    postBuildScripts:
+      - name: Embed Chromium Embedded Framework
+        basedOnDependencyAnalysis: false
+        script: |
+          set -e
+          # CEF ships an unversioned framework (Info.plist in Resources/) that
+          # Xcode refuses to embed. Install it with the standard versioned
+          # layout (like Chromium's own framework) and sign it.
+          SRC="${CEF_ROOT}/Release/Chromium Embedded Framework.framework"
+          FW="${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/Chromium Embedded Framework.framework"
+          if [ -e "$FW" ] && [ ! -L "$FW/Resources" ]; then rm -rf "$FW"; fi
+          mkdir -p "$FW/Versions/A"
+          rsync -a --delete "$SRC/" "$FW/Versions/A/"
+          ln -sfn A "$FW/Versions/Current"
+          ln -sfn "Versions/Current/Chromium Embedded Framework" "$FW/Chromium Embedded Framework"
+          ln -sfn Versions/Current/Resources "$FW/Resources"
+          ln -sfn Versions/Current/Libraries "$FW/Libraries"
+          IDENTITY="${EXPANDED_CODE_SIGN_IDENTITY:--}"
+          for LIB in "$FW/Versions/A/Libraries/"*.dylib; do
+            codesign --force --sign "$IDENTITY" --timestamp=none "$LIB"
+          done
+          codesign --force --sign "$IDENTITY" --timestamp=none "$FW"
+
+  DockTilePlugIn:
+    type: bundle
+    platform: macOS
+    sources:
+      - path: Sources/DockTilePlugIn
+    settings:
+      base:
+        PRODUCT_NAME: DockTilePlugIn
+        PRODUCT_BUNDLE_IDENTIFIER: com.euskadi31.arrow.docktile
+        WRAPPER_EXTENSION: plugin
+        INFOPLIST_FILE: Resources/DockTilePlugIn-Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+
+  Arrow Helper:
+    templates: [ChromiumHelper]
+    templateAttributes:
+      suffix: ""
+      bundleSuffix: ""
+  Arrow Helper (GPU):
+    templates: [ChromiumHelper]
+    templateAttributes:
+      suffix: " (GPU)"
+      bundleSuffix: ".gpu"
+  Arrow Helper (Renderer):
+    templates: [ChromiumHelper]
+    templateAttributes:
+      suffix: " (Renderer)"
+      bundleSuffix: ".renderer"
+  Arrow Helper (Plugin):
+    templates: [ChromiumHelper]
+    templateAttributes:
+      suffix: " (Plugin)"
+      bundleSuffix: ".plugin"
+  Arrow Helper (Alerts):
+    templates: [ChromiumHelper]
+    templateAttributes:
+      suffix: " (Alerts)"
+      bundleSuffix: ".alerts"
+
+schemes:
+  Arrow:
+    build:
+      targets:
+        Arrow: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - package: ArrowKit/ArrowKitTests

@@ -1,0 +1,6 @@
+// Clang module exposing the CEF (Chromium Embedded Framework) C API to Swift.
+// Header search path must contain the CEF distribution root (Vendor/cef).
+module CEF [system] {
+    header "CEF.h"
+    export *
+}

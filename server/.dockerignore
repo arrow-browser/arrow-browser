@@ -1,0 +1,7 @@
+data/
+arrow-server
+*.test
+Dockerfile
+.dockerignore
+.gitignore
+README.md
