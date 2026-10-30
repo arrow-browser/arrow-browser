@@ -1,0 +1,213 @@
+# Builds, notarizes and publishes Arrow when a version tag (v1.2.3) is pushed.
+#
+# Secrets (Settings ▸ Secrets and variables ▸ Actions, or the "release"
+# environment):
+#   DEVELOPER_ID_CERTIFICATE_P12       base64 of the "Developer ID Application" .p12
+#   DEVELOPER_ID_CERTIFICATE_PASSWORD  password of that .p12
+#   APP_STORE_CONNECT_API_KEY          contents of AuthKey_<key ID>.p8 (notarization)
+#   APP_STORE_CONNECT_KEY_ID           key ID of that API key
+#   APP_STORE_CONNECT_ISSUER_ID        issuer ID of the App Store Connect API keys
+#   ARROW_UPDATE_PRIVATE_KEY           optional, Ed25519 key of scripts/sign-update.swift
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release:
+    name: Build, notarize and publish
+    runs-on: xcode-27
+    timeout-minutes: 120
+    environment: release
+    permissions:
+      contents: write
+    env:
+      XCODEGEN_VERSION: 2.46.0
+      XCODEGEN_SHA256: 4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read the version from the tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME is not a version tag (v1.2.3)"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_27.1.app
+
+      - name: Install XcodeGen
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/xcodegen.zip" \
+            "https://github.com/yonaskolb/XcodeGen/releases/download/$XCODEGEN_VERSION/xcodegen.zip"
+          echo "$XCODEGEN_SHA256  $RUNNER_TEMP/xcodegen.zip" | shasum -a 256 -c -
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/xcodegen/bin" >> "$GITHUB_PATH"
+
+      # Downloaded and checked on every release rather than restored from the
+      # CI cache.
+      - run: make cef
+
+      - name: Import the Developer ID certificate
+        env:
+          CERTIFICATE_P12: ${{ secrets.DEVELOPER_ID_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+          CERTIFICATE="$RUNNER_TEMP/certificate.p12"
+          echo "$CERTIFICATE_P12" | base64 --decode > "$CERTIFICATE"
+          curl -fsSL -o "$RUNNER_TEMP/DeveloperIDG2CA.cer" https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$RUNNER_TEMP/DeveloperIDG2CA.cer" -k "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE" -k "$KEYCHAIN_PATH" -f pkcs12 -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" > /dev/null
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          rm -f "$CERTIFICATE"
+
+          IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep '"Developer ID Application: ' | head -n 1)"
+          if [ -z "$IDENTITY" ]; then
+            echo "::error::The certificate is not a Developer ID Application identity"
+            exit 1
+          fi
+          {
+            echo "KEYCHAIN_PATH=$KEYCHAIN_PATH"
+            echo "SIGNING_IDENTITY=$(awk '{print $2}' <<< "$IDENTITY")"
+            echo "TEAM_ID=$(sed -E 's/.*\(([A-Z0-9]{10})\)".*/\1/' <<< "$IDENTITY")"
+          } >> "$GITHUB_ENV"
+
+      - name: Archive
+        run: |
+          xcodegen generate
+          xcodebuild -project Arrow.xcodeproj -scheme Arrow -configuration Release \
+            -derivedDataPath build/DerivedData -archivePath build/Arrow.xcarchive archive \
+            DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="Developer ID Application" \
+            OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH" ENABLE_HARDENED_RUNTIME=YES \
+            MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER"
+
+      - name: Export
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>developer-id</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Developer ID Application</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -exportArchive -archivePath build/Arrow.xcarchive \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath build/export
+          codesign --verify --deep --strict --verbose=2 build/export/Arrow.app
+
+      - name: Notarize and package
+        env:
+          API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          API_KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+          printf '%s\n' "$API_KEY" > "$API_KEY_PATH"
+          notarize() {
+            local result id status
+            result="$(xcrun notarytool submit "$1" --key "$API_KEY_PATH" --key-id "$API_KEY_ID" \
+              --issuer "$API_ISSUER_ID" --wait --timeout 1h --output-format json)" || true
+            id="$(jq -r '.id // empty' <<< "$result")"
+            status="$(jq -r '.status // empty' <<< "$result")"
+            echo "Notarization of $(basename "$1"): ${status:-failed} ($id)"
+            if [ "$status" != Accepted ]; then
+              echo "$result"
+              if [ -n "$id" ]; then
+                xcrun notarytool log "$id" --key "$API_KEY_PATH" --key-id "$API_KEY_ID" --issuer "$API_ISSUER_ID"
+              fi
+              return 1
+            fi
+          }
+
+          APP=build/export/Arrow.app
+          ditto -c -k --keepParent "$APP" "$RUNNER_TEMP/Arrow-notarize.zip"
+          notarize "$RUNNER_TEMP/Arrow-notarize.zip"
+          xcrun stapler staple "$APP"
+          spctl --assess --type execute --verbose=2 "$APP"
+
+          mkdir -p dist
+          # Update archive (see "Publishing an update" in the README).
+          ditto -c -k --keepParent "$APP" "dist/Arrow-$VERSION.zip"
+
+          # Disk image laid out as by scripts/dist.sh.
+          STAGING="$RUNNER_TEMP/dmg"
+          DMG="dist/Arrow-$VERSION.dmg"
+          mkdir -p "$STAGING"
+          ditto "$APP" "$STAGING/Arrow.app"
+          ln -s /Applications "$STAGING/Applications"
+          for attempt in 1 2 3; do
+            if hdiutil create -volname Arrow -srcfolder "$STAGING" -fs APFS -format ULMO -ov "$DMG"; then break; fi
+            [ "$attempt" = 3 ] && exit 1
+            sleep 10
+          done
+          codesign --sign "$SIGNING_IDENTITY" --keychain "$KEYCHAIN_PATH" --timestamp "$DMG"
+          notarize "$DMG"
+          xcrun stapler staple "$DMG"
+          spctl --assess --type open --context context:primary-signature --verbose=2 "$DMG"
+
+      - name: Sign the update archive
+        env:
+          ARROW_UPDATE_PRIVATE_KEY: ${{ secrets.ARROW_UPDATE_PRIVATE_KEY }}
+        run: |
+          if [ -z "$ARROW_UPDATE_PRIVATE_KEY" ]; then
+            echo "::notice::ARROW_UPDATE_PRIVATE_KEY is not set: the update archive is not signed"
+            exit 0
+          fi
+          ZIP="dist/Arrow-$VERSION.zip"
+          SIGNATURE="$(swift scripts/sign-update.swift sign "$ZIP")"
+          PLIST=build/export/Arrow.app/Contents/Info.plist
+          jq -n \
+            --arg version "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")" \
+            --arg shortVersion "$VERSION" \
+            --arg url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/Arrow-$VERSION.zip" \
+            --argjson length "$(sed -n 's/^length: //p' <<< "$SIGNATURE")" \
+            --arg edSignature "$(sed -n 's/^edSignature: //p' <<< "$SIGNATURE")" \
+            --arg minimumSystemVersion "$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$PLIST")" \
+            --arg pubDate "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '$ARGS.named' > "$RUNNER_TEMP/release-entry.json"
+          {
+            echo "### Entry for the server's releases/releases.json"
+            echo '```json'
+            cat "$RUNNER_TEMP/release-entry.json"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "dist/Arrow-$VERSION.dmg" "dist/Arrow-$VERSION.zip" \
+            --repo "$GITHUB_REPOSITORY" --verify-tag --title "Arrow $VERSION" --generate-notes
+
+      - name: Remove the signing material
+        if: always()
+        run: |
+          if [ -n "${KEYCHAIN_PATH:-}" ]; then security delete-keychain "$KEYCHAIN_PATH" || true; fi
+          rm -f "$RUNNER_TEMP/AuthKey.p8" "$RUNNER_TEMP/certificate.p12"

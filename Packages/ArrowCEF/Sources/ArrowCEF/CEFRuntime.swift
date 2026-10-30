@@ -139,11 +139,10 @@ public final class CEFRuntime: @unchecked Sendable {
         settings.log_file.set(logs.appendingPathComponent("chromium.log").cefPath)
         settings.keychain_service_name.set("Arrow Safe Storage")
         settings.keychain_account_name.set("Arrow")
-        #if os(macOS)
-        if let frameworks = Bundle.main.privateFrameworksPath {
-            settings.browser_subprocess_path.set("\(frameworks)/Arrow Helper.app/Contents/MacOS/Arrow Helper")
-        }
-        #endif
+        // browser_subprocess_path stays empty. On macOS, CEF then uses
+        // Contents/Frameworks/Arrow Helper.app and Chromium picks its
+        // (Renderer), (GPU)… variants, each signed with its own entitlements.
+        // On Windows and Linux, subprocesses relaunch the main executable.
         settings.accept_language_list.set(Self.acceptLanguages)
         if let locale = Self.interfaceLocale {
             settings.locale.set(locale)
@@ -154,7 +153,6 @@ public final class CEFRuntime: @unchecked Sendable {
             settings.log_file.clear()
             settings.keychain_service_name.clear()
             settings.keychain_account_name.clear()
-            settings.browser_subprocess_path.clear()
             settings.accept_language_list.clear()
             settings.locale.clear()
         }
