@@ -1,0 +1,6 @@
+// Xlib, to host CEF browsers in X11 windows (Linux only).
+module CX11 [system] {
+    header "shim.h"
+    link "X11"
+    export *
+}
