@@ -1,3 +1,4 @@
+import ArrowCore
 import ArrowKit
 import SwiftUI
 
@@ -63,7 +64,7 @@ struct CommandBarOverlay: View {
                         .font(.system(size: 11.5, weight: .bold))
                         .frame(width: 24)
                 }
-                TextField(model.placeholder, text: $model.text, selection: $model.selection)
+                TextField(model.placeholder, text: $model.text, selection: $model.textSelection)
                     .textFieldStyle(.plain)
                     .font(.system(size: 18, weight: .medium))
                     .focused($isFocused)
@@ -247,5 +248,20 @@ struct KeyCap: View {
             .padding(.horizontal, 5)
             .frame(height: 18)
             .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Color.primary.opacity(0.07)))
+    }
+}
+
+extension CommandBarModel {
+    /// `selectedRange` as the selection of a SwiftUI text field.
+    var textSelection: TextSelection? {
+        get { selectedRange.map { TextSelection(range: $0) } }
+        set {
+            switch newValue?.indices {
+            case let .selection(range): selectedRange = range
+            case let .multiSelection(ranges): selectedRange = ranges.ranges.first
+            case nil: selectedRange = nil
+            @unknown default: selectedRange = nil
+            }
+        }
     }
 }

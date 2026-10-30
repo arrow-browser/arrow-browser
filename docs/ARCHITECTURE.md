@@ -83,6 +83,10 @@ can be unit tested with `swift test`, on macOS, Linux and Windows (see
 - **`History`, `Boost`, `ArrowSettings` (including Air Traffic Control),
   `Note`, `Easel`**.
 
+`ArrowCore`, a second library of the same package, receives the app state
+that every platform shares, as phase 3 of the [portability plan](PORTABILITY.md)
+moves it out of the app. It holds `CommandBarModel` so far.
+
 The app adds the runtime:
 
 - **`BrowserStore`** owns the state, persistence, the Chromium profiles and

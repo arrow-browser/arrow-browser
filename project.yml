@@ -64,6 +64,8 @@ targets:
         buildPhase: none
     dependencies:
       - package: ArrowKit
+      - package: ArrowKit
+        product: ArrowCore
       - framework: Vendor/cef/Release/Chromium Embedded Framework.framework
         embed: false
         link: true
@@ -197,3 +199,4 @@ schemes:
       config: Debug
       targets:
         - package: ArrowKit/ArrowKitTests
+        - package: ArrowKit/ArrowCoreTests
