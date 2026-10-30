@@ -72,24 +72,7 @@ public final class CEFHostWindow {
     private static let registerClass: () -> Void = {
         var windowClass = WNDCLASSEXW()
         windowClass.cbSize = UINT(MemoryLayout<WNDCLASSEXW>.size)
-        windowClass.lpfnWndProc = { window, message, wParam, lParam in
-            switch Int32(message) {
-            case WM_SIZE:
-                // Keep the browser window the size of the host.
-                var client = RECT()
-                GetClientRect(window, &client)
-                if let child = GetWindow(window, UINT(GW_CHILD)) {
-                    SetWindowPos(child, nil, 0, 0, client.right - client.left, client.bottom - client.top,
-                                 UINT(SWP_NOZORDER | SWP_NOACTIVATE))
-                }
-                return 0
-            case WM_ERASEBKGND:
-                // The browser paints the whole window.
-                return 1
-            default:
-                return DefWindowProcW(window, message, wParam, lParam)
-            }
-        }
+        windowClass.lpfnWndProc = hostWindowProcedure
         windowClass.hInstance = GetModuleHandleW(nil)
         className.withUnsafeBufferPointer { name in
             windowClass.lpszClassName = name.baseAddress
@@ -97,6 +80,25 @@ public final class CEFHostWindow {
         }
         return {}
     }()
+}
+
+private func hostWindowProcedure(_ window: HWND?, _ message: UINT, _ wParam: WPARAM, _ lParam: LPARAM) -> LRESULT {
+    switch Int32(message) {
+    case WM_SIZE:
+        // Keep the browser window the size of the host.
+        var client = RECT()
+        GetClientRect(window, &client)
+        if let child = GetWindow(window, UINT(GW_CHILD)) {
+            SetWindowPos(child, nil, 0, 0, client.right - client.left, client.bottom - client.top,
+                         UINT(SWP_NOZORDER | SWP_NOACTIVATE))
+        }
+        return 0
+    case WM_ERASEBKGND:
+        // The browser paints the whole window.
+        return 1
+    default:
+        return DefWindowProcW(window, message, wParam, lParam)
+    }
 }
 
 /// Hidden window holding browser windows that are not displayed, so

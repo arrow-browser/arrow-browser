@@ -6,9 +6,9 @@ import WinSDK
 @MainActor
 final class ShellWindow {
     let handle: HWND
-    private let onResize: (CGRect) -> Void
-    private let onClose: () -> Void
-    private static var windows: [HWND: ShellWindow] = [:]
+    fileprivate let onResize: (CGRect) -> Void
+    fileprivate let onClose: () -> Void
+    fileprivate static var windows: [HWND: ShellWindow] = [:]
 
     init(title: String, width: Int, height: Int, onResize: @escaping (CGRect) -> Void, onClose: @escaping () -> Void) {
         self.onResize = onResize
@@ -43,24 +43,7 @@ final class ShellWindow {
     private static let registerClass: () -> Void = {
         var windowClass = WNDCLASSEXW()
         windowClass.cbSize = UINT(MemoryLayout<WNDCLASSEXW>.size)
-        windowClass.lpfnWndProc = { window, message, wParam, lParam in
-            // Window messages are dispatched on the main thread.
-            let handled: Bool = MainActor.assumeIsolated {
-                guard let window, let shell = ShellWindow.windows[window] else { return false }
-                switch Int32(message) {
-                case WM_SIZE:
-                    shell.onResize(shell.contentBounds)
-                    return true
-                case WM_CLOSE:
-                    // The window is destroyed once the browser has closed.
-                    shell.onClose()
-                    return true
-                default:
-                    return false
-                }
-            }
-            return handled ? 0 : DefWindowProcW(window, message, wParam, lParam)
-        }
+        windowClass.lpfnWndProc = shellWindowProcedure
         windowClass.hInstance = GetModuleHandleW(nil)
         windowClass.hCursor = LoadCursorW(nil, UnsafePointer<WCHAR>(bitPattern: 32512))  // IDC_ARROW
         className.withUnsafeBufferPointer { name in
@@ -69,5 +52,23 @@ final class ShellWindow {
         }
         return {}
     }()
+}
+private func shellWindowProcedure(_ window: HWND?, _ message: UINT, _ wParam: WPARAM, _ lParam: LPARAM) -> LRESULT {
+    // Window messages are dispatched on the main thread.
+    let handled: Bool = MainActor.assumeIsolated {
+        guard let window, let shell = ShellWindow.windows[window] else { return false }
+        switch Int32(message) {
+        case WM_SIZE:
+            shell.onResize(shell.contentBounds)
+            return true
+        case WM_CLOSE:
+            // The window is destroyed once the browser has closed.
+            shell.onClose()
+            return true
+        default:
+            return false
+        }
+    }
+    return handled ? 0 : DefWindowProcW(window, message, wParam, lParam)
 }
 #endif

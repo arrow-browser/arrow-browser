@@ -134,9 +134,9 @@ public final class CEFRuntime: @unchecked Sendable {
         settings.persist_session_cookies = 1
         settings.log_severity = LOGSEVERITY_WARNING
         settings.background_color = 0xFFFF_FFFF
-        settings.root_cache_path.set(rootCachePath.path)
-        settings.cache_path.set(defaultProfilePath.path)
-        settings.log_file.set(logs.appendingPathComponent("chromium.log").path)
+        settings.root_cache_path.set(rootCachePath.cefPath)
+        settings.cache_path.set(defaultProfilePath.cefPath)
+        settings.log_file.set(logs.appendingPathComponent("chromium.log").cefPath)
         settings.keychain_service_name.set("Arrow Safe Storage")
         settings.keychain_account_name.set("Arrow")
         #if os(macOS)

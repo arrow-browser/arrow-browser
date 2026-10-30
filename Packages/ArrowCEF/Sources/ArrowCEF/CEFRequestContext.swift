@@ -21,7 +21,7 @@ public final class CEFRequestContext: @unchecked Sendable {
     /// cache path).
     public static func persistent(path: URL) -> CEFRequestContext {
         try? FileManager.default.createDirectory(at: path, withIntermediateDirectories: true)
-        return make(cachePath: path.path, incognito: false)
+        return make(cachePath: path.cefPath, incognito: false)
     }
 
     /// An in-memory profile whose data is discarded when released.

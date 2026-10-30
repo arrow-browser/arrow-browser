@@ -631,9 +631,9 @@ public final class CEFBrowser: @unchecked Sendable {
                 }
                 guard let owner = CEFBrowser.owner(handler), let callback = CefRef(adopting: callback) else { return 0 }
                 var kinds = Set<PermissionRequest.Kind>()
-                if requested & CEF_MEDIA_PERMISSION_DEVICE_AUDIO_CAPTURE.rawValue != 0 { kinds.insert(.microphone) }
-                if requested & CEF_MEDIA_PERMISSION_DEVICE_VIDEO_CAPTURE.rawValue != 0 { kinds.insert(.camera) }
-                if requested & (CEF_MEDIA_PERMISSION_DESKTOP_AUDIO_CAPTURE.rawValue | CEF_MEDIA_PERMISSION_DESKTOP_VIDEO_CAPTURE.rawValue) != 0 {
+                if requested & UInt32(CEF_MEDIA_PERMISSION_DEVICE_AUDIO_CAPTURE.rawValue) != 0 { kinds.insert(.microphone) }
+                if requested & UInt32(CEF_MEDIA_PERMISSION_DEVICE_VIDEO_CAPTURE.rawValue) != 0 { kinds.insert(.camera) }
+                if requested & UInt32(CEF_MEDIA_PERMISSION_DESKTOP_AUDIO_CAPTURE.rawValue | CEF_MEDIA_PERMISSION_DESKTOP_VIDEO_CAPTURE.rawValue) != 0 {
                     kinds.insert(.screenCapture)
                 }
                 let request = PermissionRequest(origin: String(cef: origin), kinds: kinds)
@@ -694,12 +694,12 @@ public final class CEFBrowser: @unchecked Sendable {
 
     private static func permissionKinds(_ mask: UInt32) -> Set<PermissionRequest.Kind> {
         var kinds = Set<PermissionRequest.Kind>()
-        if mask & CEF_PERMISSION_TYPE_GEOLOCATION.rawValue != 0 { kinds.insert(.location) }
-        if mask & CEF_PERMISSION_TYPE_NOTIFICATIONS.rawValue != 0 { kinds.insert(.notifications) }
-        if mask & CEF_PERMISSION_TYPE_CLIPBOARD.rawValue != 0 { kinds.insert(.clipboard) }
-        if mask & CEF_PERMISSION_TYPE_CAMERA_STREAM.rawValue != 0 { kinds.insert(.camera) }
-        if mask & CEF_PERMISSION_TYPE_MIC_STREAM.rawValue != 0 { kinds.insert(.microphone) }
-        if mask & CEF_PERMISSION_TYPE_MIDI_SYSEX.rawValue != 0 { kinds.insert(.midi) }
+        if mask & UInt32(CEF_PERMISSION_TYPE_GEOLOCATION.rawValue) != 0 { kinds.insert(.location) }
+        if mask & UInt32(CEF_PERMISSION_TYPE_NOTIFICATIONS.rawValue) != 0 { kinds.insert(.notifications) }
+        if mask & UInt32(CEF_PERMISSION_TYPE_CLIPBOARD.rawValue) != 0 { kinds.insert(.clipboard) }
+        if mask & UInt32(CEF_PERMISSION_TYPE_CAMERA_STREAM.rawValue) != 0 { kinds.insert(.camera) }
+        if mask & UInt32(CEF_PERMISSION_TYPE_MIC_STREAM.rawValue) != 0 { kinds.insert(.microphone) }
+        if mask & UInt32(CEF_PERMISSION_TYPE_MIDI_SYSEX.rawValue) != 0 { kinds.insert(.midi) }
         if kinds.isEmpty { kinds.insert(.other) }
         return kinds
     }
