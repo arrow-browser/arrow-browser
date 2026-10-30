@@ -80,13 +80,10 @@ final class ArrowApp {
             print("arrow: WinUI failed to start: \(error)")
         }
         current = nil
-        fputs("arrow-debug \(Date().timeIntervalSince1970): winui returned, title bar updates \(BrowserWindow.titleBarUpdates), regions \(BrowserWindow.regionUpdates)\n", stderr); fflush(stderr)
         // Foundation writes the defaults (window selection) only when asked on
         // Windows.
         UserDefaults.standard.synchronize()
-        fputs("arrow-debug \(Date().timeIntervalSince1970): shutting down cef\n", stderr); fflush(stderr)
         runtime.shutdown()
-        fputs("arrow-debug \(Date().timeIntervalSince1970): cef shut down\n", stderr); fflush(stderr)
         pump.invalidate()
         return app.smoke && !app.succeeded ? 1 : 0
     }
@@ -125,7 +122,6 @@ final class ArrowApp {
         print("arrow: loaded \(tab.url.prefix(60)), title: \(title.map { "\($0)" } ?? "none"), "
             + "hosted: \(window.isBrowserHosted ? "yes" : "no"), sandbox: \(sandboxed ? "on" : "off")")
         succeeded = title != nil && window.isBrowserHosted
-        fputs("arrow-debug \(Date().timeIntervalSince1970): smoke closes the window\n", stderr); fflush(stderr)
         window.close()
     }
 }
