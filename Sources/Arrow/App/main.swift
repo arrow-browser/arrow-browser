@@ -5,7 +5,7 @@ import ArrowCore
 // Arrow's entry point: the Chromium message loop drives NSApplication.
 
 MainActor.assumeIsolated {
-    let application = ArrowApplication.shared as! ArrowApplication
+    let application = ArrowApplication.shared as! ArrowApplication // swiftlint:disable:this force_cast
     let runtime = CEFRuntime.shared
     if let extensions = ExtensionManager.loadExtensionArgument() {
         // Chromium ignores --load-extension unless this feature is disabled.

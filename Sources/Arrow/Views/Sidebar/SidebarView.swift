@@ -251,7 +251,7 @@ private struct FavoritePreview: View {
             if let snapshot = live?.snapshot?.nsImage {
                 Image(nsImage: snapshot)
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
+                    .scaledToFill()
                     .frame(width: 340, height: 220, alignment: .top)
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
@@ -630,7 +630,7 @@ struct FaviconView: View {
             Image(nsImage: image)
                 .resizable()
                 .interpolation(.high)
-                .aspectRatio(contentMode: .fit)
+                .scaledToFit()
                 .frame(width: size, height: size)
                 .clipShape(RoundedRectangle(cornerRadius: size * 0.2, style: .continuous))
         } else if let page = InternalPage(url: url) {

@@ -1,0 +1,49 @@
+included:
+  - Sources
+  - Packages/ArrowKit/Sources
+  - Packages/ArrowKit/Tests
+  - Packages/ArrowCEF/Sources
+  - scripts
+
+excluded:
+  - Packages/ArrowKit/.build
+  - Packages/ArrowCEF/.build
+
+disabled_rules:
+  # The code base puts trailing commas in multi-line literals.
+  - trailing_comma
+  # Ternaries on Void calls (`flag ? start() : stop()`) are used on purpose.
+  - void_function_in_ternary
+  # `String(decoding:as:)` is the intended lossy decoding of untrusted bytes.
+  - optional_data_string_conversion
+  # Size metrics: views, the CEF bindings and the model are kept in large
+  # files on purpose.
+  - file_length
+  - type_body_length
+  - function_body_length
+  - cyclomatic_complexity
+
+identifier_name:
+  # Coordinates and math (x, y, t…) use short names.
+  min_length: 1
+
+type_name:
+  min_length: 1
+
+line_length:
+  # Long user-facing strings are kept on one line.
+  warning: 200
+  ignores_comments: true
+  ignores_urls: true
+
+large_tuple:
+  warning: 4
+
+nesting:
+  type_level: 3
+
+function_parameter_count:
+  warning: 6
+
+for_where:
+  allow_for_as_filter: true

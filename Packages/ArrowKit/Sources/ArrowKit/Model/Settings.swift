@@ -203,7 +203,10 @@ public struct ArrowSettings: Codable, Hashable, Sendable {
         case developerMode, sidebarOnRight, showURLBar, showToolbar, showTabPreviewsOnHover, adBlockerEnabled, adBlockerAllowedSites, soundEffects, automaticallyInstallUpdates
         case contentAppearance, allowJavaScriptFromAppleEvents
         case offerToSavePasswords, neverSavePasswordSites, autofillCards, neverTranslateLanguages, neverTranslateSites
-        case warnBeforeQuitting, searchSuggestions, documentApp, downloadLocation, downloadFolder, littleArrowShortcut, littleArrowOnOptionCommandClick, littleArrowArchive, peekOnShiftClick, autoEnableNewMaxFeatures, tidyTabs, instantLinks, chatGPTInCommandBar, hapticFeedback, restoreWindows, dragWindowFromPageTop, showFullURLInToolbar, sharedQuotes, shareThemeWithWebsites, boostsEnabled, customShortcuts
+        case warnBeforeQuitting, searchSuggestions, documentApp, downloadLocation, downloadFolder
+        case littleArrowShortcut, littleArrowOnOptionCommandClick, littleArrowArchive, peekOnShiftClick, autoEnableNewMaxFeatures
+        case tidyTabs, instantLinks, chatGPTInCommandBar, hapticFeedback, restoreWindows, dragWindowFromPageTop, showFullURLInToolbar
+        case sharedQuotes, shareThemeWithWebsites, boostsEnabled, customShortcuts
         case sidebarWidth, cloudServerURL, syncEnabled, aiEnabled, tidyTabTitles, tidyDownloads, linkPreviews
     }
 

@@ -79,7 +79,7 @@ extension AppDelegate: NSMenuItemValidation {
         let scroll = NSTextView.scrollableTextView()
         scroll.frame = NSRect(x: 0, y: 0, width: 360, height: 140)
         scroll.borderType = .bezelBorder
-        let text = scroll.documentView as! NSTextView
+        let text = scroll.documentView as! NSTextView // swiftlint:disable:this force_cast
         text.font = .systemFont(ofSize: 13)
         alert.accessoryView = scroll
         alert.window.initialFirstResponder = text

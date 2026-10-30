@@ -26,7 +26,7 @@ private struct RichTextEditor: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSTextView.scrollableTextView()
-        let textView = scrollView.documentView as! NSTextView
+        let textView = scrollView.documentView as! NSTextView // swiftlint:disable:this force_cast
         textView.isRichText = true
         textView.allowsUndo = true
         textView.usesFindBar = true
@@ -249,7 +249,7 @@ private struct EaselItemView: View {
             if let image = NSImage(data: data) {
                 Image(nsImage: image)
                     .resizable()
-                    .aspectRatio(contentMode: .fit)
+                    .scaledToFit()
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .shadow(color: .black.opacity(0.15), radius: 6, y: 2)
             }

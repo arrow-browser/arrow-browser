@@ -3,7 +3,7 @@ DERIVED := build/DerivedData
 APP := $(DERIVED)/Build/Products/Debug/Arrow.app
 XCODEBUILD := xcodebuild -project $(PROJECT) -scheme Arrow -derivedDataPath $(DERIVED)
 
-.PHONY: all cef project build release run test server-test clean
+.PHONY: all cef project build release run test lint server-test clean
 
 all: build
 
@@ -21,6 +21,9 @@ release: project
 
 run: build
 	open $(APP)
+
+lint:
+	swiftlint lint --strict
 
 test:
 	cd Packages/ArrowKit && swift test

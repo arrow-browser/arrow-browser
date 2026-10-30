@@ -346,7 +346,7 @@ public final class CEFBrowser: @unchecked Sendable {
 
         lifeSpanHandler = CefHandler(owner: self) { handler in
             handler.on_before_popup = { handler, browser, frame, _, targetURL, _, disposition, userGesture, features,
-                                        windowInfo, client, _, _, _ in
+                                        windowInfo, client, _, _, _ in // swiftlint:disable:this closure_parameter_position
                 defer {
                     cefRelease(browser)
                     cefRelease(frame)
