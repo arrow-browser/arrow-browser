@@ -5,6 +5,7 @@ import SwiftUI
 
 /// Settings ▸ Extensions.
 struct ExtensionsSettings: View {
+    @Environment(BrowserStore.self) private var store
     @State private var manager = ExtensionManager.shared
     @State private var reference = ""
     @State private var error: String?
@@ -75,7 +76,7 @@ struct ExtensionsSettings: View {
         let value = reference
         Task {
             do {
-                try await manager.install(value)
+                try await manager.install(value, using: store)
                 reference = ""
                 error = nil
             } catch {
@@ -175,6 +176,7 @@ final class ExtensionPopupController: NSObject, NSPopoverDelegate, BrowserEngine
 /// Banner offered on Chrome Web Store detail pages.
 struct WebStoreBanner: View {
     let url: String
+    @Environment(BrowserStore.self) private var store
     @State private var manager = ExtensionManager.shared
     @State private var status: String?
 
@@ -193,7 +195,7 @@ struct WebStoreBanner: View {
                     Button("Add to Arrow") {
                         Task {
                             do {
-                                let item = try await manager.install(id)
+                                let item = try await manager.install(id, using: store)
                                 status = "\(item.name) installed — relaunch to activate."
                             } catch {
                                 status = error.localizedDescription

@@ -1,5 +1,5 @@
-import AppKit
 import ArrowCore
+import Foundation
 import Observation
 
 /// Downloads of the session, shown in the sidebar and the Library.
@@ -104,8 +104,8 @@ final class DownloadManager: DownloadCenterDelegate {
         }
         if download.state == .complete, !wasComplete {
             recentlyCompleted = items[index]
-            NSWorkspace.shared.noteFileSystemChanged(items[index].destination.path)
             if let store {
+                store.platform.fileDidChange(items[index].destination)
                 let id = items[index].id
                 AIFeatures.tidyDownload(items[index], in: store) { [weak self] renamed in
                     guard let self, let position = items.firstIndex(where: { $0.id == id }) else { return }
@@ -121,11 +121,11 @@ final class DownloadManager: DownloadCenterDelegate {
     func resume(_ item: Item) { center.resume(item.id) }
 
     func reveal(_ item: Item) {
-        NSWorkspace.shared.activateFileViewerSelecting([item.destination])
+        store?.platform.reveal(item.destination)
     }
 
     func open(_ item: Item) {
-        NSWorkspace.shared.open(item.destination)
+        store?.platform.open(item.destination)
     }
 
     func clearFinished() {

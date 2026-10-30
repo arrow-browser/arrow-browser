@@ -1,128 +1,6 @@
-import AppKit
 import ArrowCore
 import ArrowKit
 import Foundation
-import Security
-
-/// Saved logins, as internet passwords in the login Keychain (Preferences ▸
-/// Profiles ▸ Passwords). Only items created by Arrow are listed.
-@MainActor
-enum PasswordStore {
-    struct Login: Identifiable, Hashable {
-        var id: String { host + "\n" + username }
-        let host: String
-        let username: String
-        let modified: Date?
-    }
-
-    private static let itemDescription = "Arrow saved login"
-
-    static func logins(for host: String? = nil) -> [Login] {
-        var query: [String: Any] = [
-            kSecClass as String: kSecClassInternetPassword,
-            kSecAttrDescription as String: itemDescription,
-            kSecMatchLimit as String: kSecMatchLimitAll,
-            kSecReturnAttributes as String: true,
-        ]
-        if let host { query[kSecAttrServer as String] = host }
-        var result: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let items = result as? [[String: Any]] else { return [] }
-        return items.compactMap { item in
-            guard let server = item[kSecAttrServer as String] as? String else { return nil }
-            return Login(host: server, username: item[kSecAttrAccount as String] as? String ?? "",
-                         modified: item[kSecAttrModificationDate as String] as? Date)
-        }
-        .sorted { ($0.host, $0.username) < ($1.host, $1.username) }
-    }
-
-    static func password(host: String, username: String) -> String? {
-        var result: CFTypeRef?
-        let status = SecItemCopyMatching(query(host: host, username: username).merging([
-            kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne,
-        ]) { $1 } as CFDictionary, &result)
-        guard status == errSecSuccess, let data = result as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
-    }
-
-    static func save(host: String, username: String, password: String) {
-        let data = Data(password.utf8)
-        let base = query(host: host, username: username)
-        if SecItemUpdate(base as CFDictionary, [kSecValueData as String: data] as CFDictionary) == errSecItemNotFound {
-            SecItemAdd(base.merging([
-                kSecValueData as String: data,
-                kSecAttrLabel as String: host,
-                kSecAttrProtocol as String: kSecAttrProtocolHTTPS,
-            ]) { $1 } as CFDictionary, nil)
-        }
-    }
-
-    static func delete(host: String, username: String) {
-        SecItemDelete(query(host: host, username: username) as CFDictionary)
-    }
-
-    private static func query(host: String, username: String) -> [String: Any] {
-        [
-            kSecClass as String: kSecClassInternetPassword,
-            kSecAttrServer as String: host,
-            kSecAttrAccount as String: username,
-            kSecAttrDescription as String: itemDescription,
-        ]
-    }
-}
-
-/// Saved payment cards, as generic passwords in the login Keychain
-/// (Preferences ▸ Profiles ▸ Credit Cards).
-@MainActor
-enum CardStore {
-    private static let service = "Arrow Payment Cards"
-
-    static func cards() -> [PaymentCard] {
-        // The file-based keychain returns data for one item at a time only.
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecMatchLimit as String: kSecMatchLimitAll,
-            kSecReturnAttributes as String: true,
-        ]
-        var result: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let items = result as? [[String: Any]] else { return [] }
-        return items.compactMap { item -> PaymentCard? in
-            guard let account = item[kSecAttrAccount as String] as? String else { return nil }
-            var data: CFTypeRef?
-            let one: [String: Any] = [
-                kSecClass as String: kSecClassGenericPassword,
-                kSecAttrService as String: service,
-                kSecAttrAccount as String: account,
-                kSecReturnData as String: true,
-            ]
-            guard SecItemCopyMatching(one as CFDictionary, &data) == errSecSuccess, let data = data as? Data else { return nil }
-            return try? JSONDecoder().decode(PaymentCard.self, from: data)
-        }
-        .sorted { $0.label < $1.label }
-    }
-
-    static func save(_ card: PaymentCard) {
-        guard let data = try? JSONEncoder().encode(card) else { return }
-        let base: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: card.id.uuidString,
-        ]
-        if SecItemUpdate(base as CFDictionary, [kSecValueData as String: data] as CFDictionary) == errSecItemNotFound {
-            SecItemAdd(base.merging([kSecValueData as String: data, kSecAttrLabel as String: card.label]) { $1 } as CFDictionary, nil)
-        }
-    }
-
-    static func delete(_ card: PaymentCard) {
-        SecItemDelete([
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: card.id.uuidString,
-        ] as CFDictionary)
-    }
-}
 
 /// Banner offered over a page: save or fill a password or a card, translate.
 struct PageOffer: Identifiable {
@@ -268,7 +146,7 @@ extension WebTab {
         if case .translate? = offer?.kind { offer = nil }
         browser.executeJavaScript(AutofillScripts.observer, scriptURL: "arrow://autofill")
         if let host = pageHost, store.settings.offerToSavePasswords {
-            let logins = PasswordStore.logins(for: host)
+            let logins = store.platform.credentials.logins(for: host)
             if !logins.isEmpty {
                 Task {
                     // Chromium's values come back as numbers for booleans.
@@ -305,7 +183,7 @@ extension WebTab {
                   let login = decode(message, prefix: "__arrow_login__:"),
                   let password = login["password"], !password.isEmpty else { return true }
             let username = login["username"] ?? ""
-            if PasswordStore.password(host: host, username: username) != password {
+            if store.platform.credentials.password(host: host, username: username) != password {
                 offer = PageOffer(kind: .savePassword(host: host, username: username, password: password))
             }
             return true
@@ -314,14 +192,14 @@ extension WebTab {
             guard store.settings.autofillCards, !isIncognito, let card = decode(message, prefix: "__arrow_card__:"),
                   let number = card["number"], PaymentCard.isValidNumber(number) else { return true }
             let digits = number.filter(\.isNumber)
-            guard !CardStore.cards().contains(where: { $0.number == digits }) else { return true }
+            guard !store.platform.credentials.cards().contains(where: { $0.number == digits }) else { return true }
             let expiry = card["expiry"].flatMap(PaymentCard.parseExpiry)
             offer = PageOffer(kind: .saveCard(PaymentCard(holder: card["name"] ?? "", number: digits,
                                                           expiryMonth: expiry?.month ?? 1, expiryYear: expiry?.year ?? 2000)))
             return true
         }
         if message == "__arrow_card_focus__" {
-            let cards = CardStore.cards()
+            let cards = store.platform.credentials.cards()
             // Filling the field being typed in comes before a translation offer.
             var isTranslating = false
             if case .translate? = offer?.kind { isTranslating = true }
@@ -333,8 +211,8 @@ extension WebTab {
         return false
     }
 
-    func fill(login: PasswordStore.Login) {
-        guard let password = PasswordStore.password(host: login.host, username: login.username) else { return }
+    func fill(login: SavedLogin) {
+        guard let password = store?.platform.credentials.password(host: login.host, username: login.username) else { return }
         engine?.executeJavaScript(AutofillScripts.fillLogin(username: login.username, password: password),
                                   scriptURL: "arrow://autofill")
     }
@@ -356,11 +234,11 @@ extension WebTab {
         guard let offer else { return }
         switch offer.kind {
         case let .savePassword(host, username, password):
-            PasswordStore.save(host: host, username: username, password: password)
+            store?.platform.credentials.savePassword(password, host: host, username: username)
         case let .saveCard(card):
-            CardStore.save(card)
+            store?.platform.credentials.save(card)
         case let .fillPassword(host, usernames):
-            if let username = usernames.first { fill(login: PasswordStore.Login(host: host, username: username, modified: nil)) }
+            if let username = usernames.first { fill(login: SavedLogin(host: host, username: username, modified: nil)) }
         case let .fillCard(cards):
             if let card = cards.first { fill(card: card) }
         case .translate:

@@ -1,8 +1,8 @@
+import ArrowCore
 import ArrowKit
 import CryptoKit
 import Foundation
 import Observation
-import Security
 import SwiftUI
 
 /// Client of Arrow's self-hosted server (see server/README.md): accounts,
@@ -29,8 +29,11 @@ final class ArrowCloud {
     private(set) var lastSyncDate: Date?
 
     @ObservationIgnored private weak var store: BrowserStore?
+    @ObservationIgnored private let platform: any Platform
+    /// Account token and sync key.
+    @ObservationIgnored private var secrets: any SecretStore { platform.cloudSecrets }
     @ObservationIgnored private var token: String? {
-        didSet { Keychain.set(token, account: "token") }
+        didSet { secrets.setSecret(token, for: "token") }
     }
 
     @ObservationIgnored private var eventsTask: Task<Void, Never>?
@@ -52,6 +55,7 @@ final class ArrowCloud {
 
     init(store: BrowserStore) {
         self.store = store
+        platform = store.platform
         syncStateURL = store.dataDirectory.appendingPathComponent("SyncState.json")
         syncState = JSONStore<SyncState>(url: syncStateURL).load() ?? SyncState()
         if let existing = UserDefaults.standard.string(forKey: "ArrowDeviceID") {
@@ -60,7 +64,7 @@ final class ArrowCloud {
             deviceID = UUID().uuidString
             UserDefaults.standard.set(deviceID, forKey: "ArrowDeviceID")
         }
-        token = Keychain.get(account: "token")
+        token = secrets.secret(for: "token")
         if token != nil {
             Task { await refreshUser() }
         }
@@ -164,13 +168,13 @@ final class ArrowCloud {
 
     /// Base64 recovery key: the only way to decrypt synced data on a new Mac.
     var recoveryKey: String {
-        SyncKey.current().withUnsafeBytes { Data($0).base64EncodedString() }
+        SyncKey.current(in: secrets).withUnsafeBytes { Data($0).base64EncodedString() }
     }
 
     func restore(recoveryKey: String) -> Bool {
         guard let data = Data(base64Encoded: recoveryKey.trimmingCharacters(in: .whitespacesAndNewlines)),
               data.count == 32 else { return false }
-        SyncKey.store(SymmetricKey(data: data))
+        SyncKey.store(SymmetricKey(data: data), in: secrets)
         syncState = SyncState()
         Task { await syncNow() }
         return true
@@ -178,14 +182,14 @@ final class ArrowCloud {
 
     private func seal<T: Encodable>(_ value: T) throws -> String {
         let plaintext = try JSONEncoder.arrow.encode(value)
-        let box = try AES.GCM.seal(plaintext, using: SyncKey.current())
+        let box = try AES.GCM.seal(plaintext, using: SyncKey.current(in: secrets))
         return box.combined!.base64EncodedString()
     }
 
     private func open<T: Decodable>(_ payload: String, as type: T.Type) throws -> T {
         guard let data = Data(base64Encoded: payload) else { throw CocoaError(.coderReadCorrupt) }
         let box = try AES.GCM.SealedBox(combined: data)
-        let plaintext = try AES.GCM.open(box, using: SyncKey.current())
+        let plaintext = try AES.GCM.open(box, using: SyncKey.current(in: secrets))
         return try JSONDecoder.arrow.decode(T.self, from: plaintext)
     }
 
@@ -353,7 +357,7 @@ final class ArrowCloud {
 
     private func hashOfDecrypted(_ payload: String) throws -> String {
         guard let data = Data(base64Encoded: payload) else { return "" }
-        let plaintext = try AES.GCM.open(AES.GCM.SealedBox(combined: data), using: SyncKey.current())
+        let plaintext = try AES.GCM.open(AES.GCM.SealedBox(combined: data), using: SyncKey.current(in: secrets))
         return SHA256.hash(data: plaintext).map { String(format: "%02x", $0) }.joined()
     }
 
@@ -478,7 +482,7 @@ final class ArrowCloud {
     }
 
     func sendFeedback(_ message: String, email: String?) async throws {
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let version = platform.appVersion
         _ = try await request("POST", "/v1/feedback", body: FeedbackRequest(
             message: message, email: email?.isEmpty == true ? nil : email, appVersion: version,
             osVersion: ProcessInfo.processInfo.operatingSystemVersionString))
@@ -512,51 +516,20 @@ extension JSONDecoder {
     }
 }
 
-/// The 256-bit sync key, kept in the Keychain.
+/// The 256-bit sync key, kept by the platform's credential store.
+@MainActor
 private enum SyncKey {
-    static func current() -> SymmetricKey {
-        if let stored = Keychain.get(account: "syncKey"), let data = Data(base64Encoded: stored), data.count == 32 {
+    static func current(in secrets: any SecretStore) -> SymmetricKey {
+        if let stored = secrets.secret(for: "syncKey"), let data = Data(base64Encoded: stored), data.count == 32 {
             return SymmetricKey(data: data)
         }
         let key = SymmetricKey(size: .bits256)
-        store(key)
+        store(key, in: secrets)
         return key
     }
 
-    static func store(_ key: SymmetricKey) {
-        Keychain.set(key.withUnsafeBytes { Data($0).base64EncodedString() }, account: "syncKey")
-    }
-}
-
-/// Generic passwords of the "Arrow Cloud" Keychain service.
-enum Keychain {
-    private static let service = "Arrow Cloud"
-
-    static func get(account: String) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        var result: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess, let data = result as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
-    }
-
-    static func set(_ value: String?, account: String) {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-        ]
-        SecItemDelete(query as CFDictionary)
-        guard let value else { return }
-        var attributes = query
-        attributes[kSecValueData as String] = Data(value.utf8)
-        attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        SecItemAdd(attributes as CFDictionary, nil)
+    static func store(_ key: SymmetricKey, in secrets: any SecretStore) {
+        secrets.setSecret(key.withUnsafeBytes { Data($0).base64EncodedString() }, for: "syncKey")
     }
 }
 

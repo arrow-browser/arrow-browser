@@ -19,12 +19,7 @@ final class BrowserStore {
             if settings.syncEnabled != oldValue.syncEnabled || settings.cloudServerURL != oldValue.cloudServerURL {
                 settings.syncEnabled ? cloud.startSync() : cloud.stopSync()
             }
-            if settings.littleArrowShortcut != oldValue.littleArrowShortcut, !isIncognito {
-                GlobalShortcut.littleArrow.setEnabled(settings.littleArrowShortcut)
-            }
-            if settings.customShortcuts != oldValue.customShortcuts, !isIncognito {
-                MainMenu.applyShortcuts(settings.customShortcuts)
-            }
+            if !isIncognito { platform.apply(settings, previous: oldValue) }
             if settings.contentAppearance != oldValue.contentAppearance {
                 for tab in tabs.values { tab.applyContentAppearance() }
             }
@@ -56,6 +51,8 @@ final class BrowserStore {
 
     /// The rendering engine (Chromium).
     let engine: any EngineRuntime
+    /// The services of the operating system (Keychain, clipboard…).
+    let platform: any Platform
     /// Directory of Arrow's own data (Chromium uses the parent directory).
     let dataDirectory: URL
     /// Incognito stores keep everything in memory and use an off-the-record
@@ -66,8 +63,9 @@ final class BrowserStore {
         case sidebar, settings, history, boosts, notes, easels
     }
 
-    init(engine: any EngineRuntime, dataDirectory: URL? = nil) {
+    init(engine: any EngineRuntime, platform: any Platform, dataDirectory: URL? = nil) {
         self.engine = engine
+        self.platform = platform
         let dataDirectory = dataDirectory ?? engine.rootCachePath.appendingPathComponent("State", isDirectory: true)
         self.dataDirectory = dataDirectory
         isIncognito = false
@@ -89,8 +87,10 @@ final class BrowserStore {
     }
 
     /// Ephemeral store of an incognito window.
-    init(incognitoWith settings: ArrowSettings, downloads: DownloadManager, engine: any EngineRuntime) {
+    init(incognitoWith settings: ArrowSettings, downloads: DownloadManager, engine: any EngineRuntime,
+         platform: any Platform) {
         self.engine = engine
+        self.platform = platform
         dataDirectory = FileManager.default.temporaryDirectory
         isIncognito = true
         let profile = Profile(name: "Incognito", isDefault: true)
@@ -402,6 +402,12 @@ final class BrowserStore {
     func deleteEasel(_ id: UUID) {
         easels.removeAll { $0.id == id }
         scheduleSave(.easels)
+    }
+
+    /// Preferences ▸ Advanced ▸ Play Arrow sound effects.
+    func playSound(_ effect: SoundEffect) {
+        guard settings.soundEffects else { return }
+        platform.play(effect)
     }
 
     // MARK: - Maintenance

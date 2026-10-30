@@ -1,5 +1,6 @@
 #if DEBUG
 import AppKit
+import ArrowCore
 import ArrowKit
 
 /// Debug-only remote control used to exercise the UI from scripts:
@@ -63,7 +64,7 @@ enum DebugAutomation {
         case "installExtension":
             Task {
                 do {
-                    let item = try await ExtensionManager.shared.install(argument)
+                    let item = try await ExtensionManager.shared.install(argument, using: window.store)
                     NSLog("Arrow debug: installed \(item.name) \(item.version)")
                 } catch {
                     NSLog("Arrow debug: install failed: \(error.localizedDescription)")
@@ -186,9 +187,9 @@ enum DebugAutomation {
                 + "sheet=\(window.state.sheet.map { "\($0.id)" } ?? "none") commandBar=\(window.state.commandBar != nil) "
                 + "littleArrows=\(NSApp.windows.filter { $0.windowController is LittleArrowWindowController && $0.isVisible }.count) "
                 + "hotkey=\(GlobalShortcut.littleArrow.status.map(String.init) ?? "unregistered")")
-        case "playSound": SoundEffects.play(argument == "capture" ? .capture : .event, store: window.store)
+        case "playSound": window.store.playSound(argument == "capture" ? .capture : .event)
         case "soundInfo":
-            log("sounds " + [SoundEffects.Effect.event, .capture].map { "\($0.rawValue)=\(SoundEffects.info($0))" }.joined(separator: " "))
+            log("sounds " + [SoundEffect.event, .capture].map { "\($0.rawValue)=\(SoundEffects.info($0))" }.joined(separator: " "))
         case "castState":
             let cast = CastController.shared
             Task {

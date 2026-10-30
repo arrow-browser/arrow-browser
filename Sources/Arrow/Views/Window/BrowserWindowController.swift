@@ -417,7 +417,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.writeObjects([image])
             if !isIncognito { MediaLibrary.saveCapture(image, from: tab, in: store) }
-            SoundEffects.play(.capture, store: store)
+            store.playSound(.capture)
             state.showToast("Capture copied to clipboard", symbol: "camera.viewfinder")
         }
     }
