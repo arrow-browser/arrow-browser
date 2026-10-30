@@ -119,7 +119,8 @@ At `e4de7af`, Arrow is about 19,600 lines of Swift:
     sandbox to `CEFRuntime.executeProcess(sandboxInfo:)` and
     `initialize(sandboxInfo:)`; without it, subprocesses run unsandboxed.
     `cef-shell-sandboxed.dll` is `cef-shell` built that way, for
-    `bootstrapc.exe`; CI runs both.
+    `bootstrapc.exe`; CI runs both. Sandboxed processes do not look for DLLs
+    in `PATH`, so the Swift runtime DLLs must sit next to the executable.
 - `scripts/fetch-cef.sh` fetches the distribution of the machine (macOS,
   Windows or Linux, x64 or arm64); `scripts/stage-cef.sh` installs the CEF
   runtime next to a Windows or Linux executable.
@@ -141,7 +142,8 @@ Done when a window with one CEF browser runs on Windows and Linux.
 - Build with SwiftPM (CMake where SwiftPM falls short), ship an installer.
 - Sandbox: ship the app as a DLL exporting `RunWinMain`, loaded by CEF's
   `bootstrap.exe` renamed after it, as `cef-shell-sandboxed` does with
-  `bootstrapc.exe`. Signing both is part of shipping the installer.
+  `bootstrapc.exe`. The installer puts the Swift runtime DLLs next to the
+  executable and signs the executable and the DLL.
 - Updates reuse ArrowKit's appcast parser and EdDSA check; only the install
   step is Windows-specific.
 
