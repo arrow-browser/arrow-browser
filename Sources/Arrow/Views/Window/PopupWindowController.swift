@@ -1,10 +1,11 @@
 import AppKit
+import ArrowCore
 import ArrowKit
 import SwiftUI
 
 /// Window of a sized `window.open()` popup (sign-in flows, payment…).
 @MainActor
-final class PopupWindowController: NSWindowController, NSWindowDelegate, CEFBrowserDelegate {
+final class PopupWindowController: NSWindowController, NSWindowDelegate, BrowserEngineDelegate {
     let engine: CEFBrowser
     private weak var parent: BrowserWindowController?
     private weak var store: BrowserStore?
@@ -39,27 +40,27 @@ final class PopupWindowController: NSWindowController, NSWindowDelegate, CEFBrow
         return false
     }
 
-    func browser(_ browser: CEFBrowser, didChangeTitle title: String) {
+    func browser(_ browser: any BrowserEngine, didChangeTitle title: String) {
         window?.title = title
     }
 
-    func browser(_ browser: CEFBrowser, didChangeAddress url: String) {
+    func browser(_ browser: any BrowserEngine, didChangeAddress url: String) {
         window?.subtitle = URLDisplay.short(url)
     }
 
-    func browser(_ browser: CEFBrowser, createPopupFor url: String, disposition: CEFWindowOpenDisposition,
-                 userGesture: Bool, features: CEFPopupFeatures) -> CEFBrowser? {
+    func browser(_ browser: any BrowserEngine, createPopupFor url: String, disposition: WindowOpenDisposition,
+                 userGesture: Bool, features: PopupFeatures) -> (any BrowserEngine)? {
         // Nested popups open as regular tabs of the parent window.
         parent?.openNewTab(url)
         return nil
     }
 
-    func browserDidClose(_ browser: CEFBrowser) {
+    func browserDidClose(_ browser: any BrowserEngine) {
         window?.close()
         parent?.popupClosed(self)
     }
 
-    func browserWillClose(_ browser: CEFBrowser) {
+    func browserWillClose(_ browser: any BrowserEngine) {
         if !browser.isClosing { window?.orderOut(nil) }
     }
 }

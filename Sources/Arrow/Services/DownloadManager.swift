@@ -1,10 +1,11 @@
 import AppKit
+import ArrowCore
 import Observation
 
 /// Downloads of the session, shown in the sidebar and the Library.
 @MainActor
 @Observable
-final class DownloadManager: CEFDownloadCenterDelegate {
+final class DownloadManager: DownloadCenterDelegate {
     struct Item: Identifiable, Equatable {
         var id: UInt32
         var fileName: String
@@ -12,7 +13,7 @@ final class DownloadManager: CEFDownloadCenterDelegate {
         var destination: URL
         var receivedBytes: Int64
         var totalBytes: Int64
-        var state: CEFDownload.State
+        var state: Download.State
         var startedAt: Date
 
         var fraction: Double {
@@ -24,11 +25,16 @@ final class DownloadManager: CEFDownloadCenterDelegate {
     /// Last download that finished, for the sidebar notification.
     private(set) var recentlyCompleted: Item?
     @ObservationIgnored weak var store: BrowserStore?
+    @ObservationIgnored private let center: any DownloadCenter
     @ObservationIgnored private var tabsToClose: [UInt32: UUID] = [:]
+
+    init(center: any DownloadCenter) {
+        self.center = center
+    }
 
     /// Receives every download of the application.
     func activate() {
-        CEFDownloadCenter.shared.delegate = self
+        center.delegate = self
     }
 
     var activeCount: Int { items.filter { $0.state == .inProgress || $0.state == .paused }.count }
@@ -67,7 +73,7 @@ final class DownloadManager: CEFDownloadCenterDelegate {
         return committedURL.isEmpty || committedURL == "about:blank"
     }
 
-    func downloadCenter(didUpdate download: CEFDownload) {
+    func downloadCenter(didUpdate download: Download) {
         let destination = download.fullPath.isEmpty ? nil : URL(fileURLWithPath: download.fullPath)
         let index: Int
         let wasComplete: Bool
@@ -110,9 +116,9 @@ final class DownloadManager: CEFDownloadCenterDelegate {
         }
     }
 
-    func cancel(_ item: Item) { CEFDownloadCenter.shared.cancel(item.id) }
-    func pause(_ item: Item) { CEFDownloadCenter.shared.pause(item.id) }
-    func resume(_ item: Item) { CEFDownloadCenter.shared.resume(item.id) }
+    func cancel(_ item: Item) { center.cancel(item.id) }
+    func pause(_ item: Item) { center.pause(item.id) }
+    func resume(_ item: Item) { center.resume(item.id) }
 
     func reveal(_ item: Item) {
         NSWorkspace.shared.activateFileViewerSelecting([item.destination])

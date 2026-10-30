@@ -1,3 +1,4 @@
+import ArrowCore
 import ArrowKit
 import Foundation
 import Observation
@@ -6,13 +7,15 @@ import Observation
 ///
 /// Filter lists come from the Arrow Cloud server when configured
 /// (`/v1/blocklists`), otherwise directly from EasyList. They are cached for
-/// a day and compiled into a `ContentBlocker` used by `CEFResourceFilter`.
+/// a day and compiled into a `ContentBlocker` used by the engine's
+/// `ResourceFilter`.
 @MainActor
 @Observable
 final class AdBlocker {
     private(set) var ruleCount = 0
     private(set) var lastUpdate: Date?
     @ObservationIgnored private weak var store: BrowserStore?
+    @ObservationIgnored private let filter: any ResourceFilter
     @ObservationIgnored private var blocker = ContentBlocker()
     @ObservationIgnored private let cacheDirectory: URL
 
@@ -24,10 +27,11 @@ final class AdBlocker {
 
     init(store: BrowserStore) {
         self.store = store
+        filter = store.engine.resourceFilter
         cacheDirectory = store.dataDirectory.appendingPathComponent("Blocklists", isDirectory: true)
     }
 
-    var blockedRequests: Int { CEFResourceFilter.shared.blocked }
+    var blockedRequests: Int { filter.blocked }
 
     /// Loads the cached lists, applies them, then refreshes stale ones.
     func start() {
@@ -41,12 +45,12 @@ final class AdBlocker {
     /// Re-applies the current settings (toggle, allowed sites).
     func apply() {
         guard let settings = store?.settings, settings.adBlockerEnabled, blocker.ruleCount > 0 else {
-            CEFResourceFilter.shared.setDecision(nil)
+            filter.setDecision(nil)
             return
         }
         let blocker = blocker
         let allowed = Set(settings.adBlockerAllowedSites)
-        CEFResourceFilter.shared.setDecision { url, initiator, isNavigation in
+        filter.setDecision { url, initiator, isNavigation in
             if let initiator, let host = URLComponents(string: initiator)?.host,
                allowed.contains(URLDisplay.registrableDomain(host.lowercased())) {
                 return false

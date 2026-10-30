@@ -1,4 +1,5 @@
 import AppKit
+import ArrowCore
 import CEF
 
 /// NSView hosting a Chromium browser view. Keeps CEF's child view sized to
@@ -58,7 +59,7 @@ enum CEFParkingLot {
 final class CEFBrowser: @unchecked Sendable {
     let hostView: CEFHostView
     let requestContext: CEFRequestContext
-    @MainActor weak var delegate: CEFBrowserDelegate?
+    @MainActor weak var delegate: (any BrowserEngineDelegate)?
 
     @MainActor private(set) var browser: CefRef<cef_browser_t>?
     @MainActor private(set) var isClosing = false
@@ -71,7 +72,6 @@ final class CEFBrowser: @unchecked Sendable {
     private var loadHandler: CefHandler<cef_load_handler_t>!
     private var displayHandler: CefHandler<cef_display_handler_t>!
     private var requestHandler: CefHandler<cef_request_handler_t>!
-    private var keyboardHandler: CefHandler<cef_keyboard_handler_t>!
     private var contextMenuHandler: CefHandler<cef_context_menu_handler_t>!
     private var findHandler: CefHandler<cef_find_handler_t>!
     private var focusHandler: CefHandler<cef_focus_handler_t>!
@@ -82,7 +82,7 @@ final class CEFBrowser: @unchecked Sendable {
     @MainActor private var nextMessageID: Int32 = 1
     @MainActor private var pendingDevToolsResults: [Int32: (Bool, Data) -> Void] = [:]
     @MainActor private var pendingImageRequests: [ObjectIdentifier: CEFImageRequest] = [:]
-    @MainActor private var lastContextMenuParams: CEFContextMenuParams?
+    @MainActor private var lastContextMenuParams: ContextMenuParams?
 
     @MainActor
     init(requestContext: CEFRequestContext, frame: CGRect = CGRect(x: 0, y: 0, width: 800, height: 600)) {
@@ -139,7 +139,7 @@ final class CEFBrowser: @unchecked Sendable {
 
     /// Closes the browser, running the page's unload handlers unless `force`.
     @MainActor
-    func close(force: Bool = false) {
+    func close(force: Bool) {
         guard !isClosed, !(isClosing && !force) else { return }
         isClosing = true
         Self.closing[ObjectIdentifier(self)] = self
@@ -212,7 +212,7 @@ final class CEFBrowser: @unchecked Sendable {
     }
 
     @MainActor
-    func executeJavaScript(_ code: String, scriptURL: String = "arrow://internal") {
+    func executeJavaScript(_ code: String, scriptURL: String) {
         guard let frame = mainFrame else { return }
         withCefString(code) { code in
             withCefString(scriptURL) { url in
@@ -243,21 +243,21 @@ final class CEFBrowser: @unchecked Sendable {
     }
 
     @MainActor
-    func find(_ text: String, forward: Bool = true, matchCase: Bool = false, findNext: Bool) {
+    func find(_ text: String, forward: Bool, findNext: Bool) {
         guard let host else { return }
         withCefString(text) { text in
-            host.pointer.pointee.find?(host.pointer, text, forward ? 1 : 0, matchCase ? 1 : 0, findNext ? 1 : 0)
+            host.pointer.pointee.find?(host.pointer, text, forward ? 1 : 0, 0, findNext ? 1 : 0)
         }
     }
 
     @MainActor
-    func stopFinding(clearSelection: Bool = true) {
-        host.map { $0.pointer.pointee.stop_finding?($0.pointer, clearSelection ? 1 : 0) }
+    func stopFinding() {
+        host.map { $0.pointer.pointee.stop_finding?($0.pointer, 1) }
     }
 
     @MainActor
     /// Opens Developer Tools, on `panel` ("console", "network"…) when given.
-    func showDevTools(inspectAt point: CGPoint? = nil, panel: String? = nil) {
+    func showDevTools(inspectAt point: CGPoint?, panel: String?) {
         guard let host else { return }
         let client = panel.map { CEFDevToolsPanel.client(showing: $0) }
         var windowInfo = cef_window_info_t()
@@ -312,7 +312,7 @@ final class CEFBrowser: @unchecked Sendable {
 
     /// Executes a DevTools protocol method and returns its JSON result.
     @MainActor
-    func devToolsMethod(_ method: String, params: [String: Any] = [:]) async -> [String: Any]? {
+    func devToolsMethod(_ method: String, params: [String: Any]) async -> [String: Any]? {
         guard let host else { return nil }
         let messageID = nextMessageID
         nextMessageID += 1
@@ -344,21 +344,21 @@ final class CEFBrowser: @unchecked Sendable {
 
     /// PNG screenshot of the visible page (or of `clip`, in CSS pixels).
     @MainActor
-    func captureScreenshot(clip: CGRect? = nil) async -> NSImage? {
+    func captureScreenshot(clip: CGRect?) async -> Data? {
         var params: [String: Any] = ["format": "png", "captureBeyondViewport": false]
         if let clip {
             params["clip"] = ["x": clip.minX, "y": clip.minY, "width": clip.width, "height": clip.height, "scale": 1]
         }
         guard let base64 = await devToolsMethod("Page.captureScreenshot", params: params)?["data"] as? String,
               let data = Data(base64Encoded: base64) else { return nil }
-        return NSImage(data: data)
+        return data
     }
 
     // MARK: - Images
 
     /// Downloads an image (favicon…) using this browser's profile.
     @MainActor
-    func downloadImage(url: String, isFavicon: Bool = true, maxSize: Int = 64) async -> NSImage? {
+    func downloadImage(url: String, isFavicon: Bool, maxSize: Int) async -> Data? {
         guard let host else { return nil }
         return await withCheckedContinuation { continuation in
             let request = CEFImageRequest()
@@ -394,7 +394,6 @@ final class CEFBrowser: @unchecked Sendable {
             client.get_load_handler = { CEFBrowser.owner($0)?.loadHandler.retained() }
             client.get_display_handler = { CEFBrowser.owner($0)?.displayHandler.retained() }
             client.get_request_handler = { CEFBrowser.owner($0)?.requestHandler.retained() }
-            client.get_keyboard_handler = { CEFBrowser.owner($0)?.keyboardHandler.retained() }
             client.get_context_menu_handler = { CEFBrowser.owner($0)?.contextMenuHandler.retained() }
             client.get_find_handler = { CEFBrowser.owner($0)?.findHandler.retained() }
             client.get_focus_handler = { CEFBrowser.owner($0)?.focusHandler.retained() }
@@ -411,15 +410,15 @@ final class CEFBrowser: @unchecked Sendable {
                 }
                 guard let owner = CEFBrowser.owner(handler), let windowInfo, let client else { return 1 }
                 let url = String(cef: targetURL)
-                let popupFeatures = CEFPopupFeatures(features?.pointee)
+                let popupFeatures = PopupFeatures(features?.pointee)
                 // CEF calls this on its UI thread, which is the main thread.
                 nonisolated(unsafe) let popupWindowInfo = windowInfo
                 nonisolated(unsafe) let popupClient = client
                 return MainActor.assumeIsolated {
                     guard let popup = owner.delegate?.browser(owner, createPopupFor: url,
-                                                              disposition: CEFWindowOpenDisposition(disposition),
+                                                              disposition: WindowOpenDisposition(disposition),
                                                               userGesture: userGesture != 0,
-                                                              features: popupFeatures)
+                                                              features: popupFeatures) as? CEFBrowser
                     else { return 1 }
                     let info = popup.makeWindowInfo()
                     popupWindowInfo.pointee.parent_view = info.parent_view
@@ -599,32 +598,19 @@ final class CEFBrowser: @unchecked Sendable {
                 guard let owner = CEFBrowser.owner(handler) else { return 0 }
                 let url = String(cef: targetURL)
                 return MainActor.assumeIsolated {
-                    owner.delegate?.browser(owner, openURL: url, disposition: CEFWindowOpenDisposition(disposition)) == true ? 1 : 0
+                    owner.delegate?.browser(owner, openURL: url, disposition: WindowOpenDisposition(disposition)) == true ? 1 : 0
                 }
             }
             handler.on_render_process_terminated = { handler, browser, status, _, _ in
                 defer { cefRelease(browser) }
                 guard let owner = CEFBrowser.owner(handler) else { return }
-                let termination: CEFTerminationStatus = switch status {
+                let termination: TerminationStatus = switch status {
                 case TS_PROCESS_CRASHED: .crashed
                 case TS_PROCESS_WAS_KILLED: .killed
                 case TS_PROCESS_OOM: .outOfMemory
                 default: .other
                 }
                 MainActor.assumeIsolated { owner.delegate?.browser(owner, rendererDidTerminate: termination) }
-            }
-        }
-
-        keyboardHandler = CefHandler(owner: self) { handler in
-            handler.on_pre_key_event = { handler, browser, event, osEvent, _ in
-                defer { cefRelease(browser) }
-                guard let owner = CEFBrowser.owner(handler), let osEvent,
-                      let type = event?.pointee.type, type == KEYEVENT_RAWKEYDOWN || type == KEYEVENT_KEYDOWN
-                else { return 0 }
-                nonisolated(unsafe) let nsEvent = Unmanaged<NSEvent>.fromOpaque(osEvent).takeUnretainedValue()
-                return MainActor.assumeIsolated {
-                    owner.delegate?.browser(owner, handlePreKeyEvent: nsEvent) == true ? 1 : 0
-                }
             }
         }
 
@@ -697,13 +683,13 @@ final class CEFBrowser: @unchecked Sendable {
                     cefRelease(frame)
                 }
                 guard let owner = CEFBrowser.owner(handler), let callback = CefRef(adopting: callback) else { return 0 }
-                var kinds = Set<CEFPermissionRequest.Kind>()
+                var kinds = Set<PermissionRequest.Kind>()
                 if requested & CEF_MEDIA_PERMISSION_DEVICE_AUDIO_CAPTURE.rawValue != 0 { kinds.insert(.microphone) }
                 if requested & CEF_MEDIA_PERMISSION_DEVICE_VIDEO_CAPTURE.rawValue != 0 { kinds.insert(.camera) }
                 if requested & (CEF_MEDIA_PERMISSION_DESKTOP_AUDIO_CAPTURE.rawValue | CEF_MEDIA_PERMISSION_DESKTOP_VIDEO_CAPTURE.rawValue) != 0 {
                     kinds.insert(.screenCapture)
                 }
-                let request = CEFPermissionRequest(origin: String(cef: origin), kinds: kinds)
+                let request = PermissionRequest(origin: String(cef: origin), kinds: kinds)
                 return MainActor.assumeIsolated {
                     let handled = owner.delegate?.browser(owner, requestsPermission: request) { allowed in
                         callback.pointer.pointee.cont?(callback.pointer, allowed ? requested : 0)
@@ -714,7 +700,7 @@ final class CEFBrowser: @unchecked Sendable {
             handler.on_show_permission_prompt = { handler, browser, _, origin, requested, callback in
                 defer { cefRelease(browser) }
                 guard let owner = CEFBrowser.owner(handler), let callback = CefRef(adopting: callback) else { return 0 }
-                let request = CEFPermissionRequest(origin: String(cef: origin), kinds: CEFBrowser.permissionKinds(requested))
+                let request = PermissionRequest(origin: String(cef: origin), kinds: CEFBrowser.permissionKinds(requested))
                 return MainActor.assumeIsolated {
                     let handled = owner.delegate?.browser(owner, requestsPermission: request) { allowed in
                         callback.pointer.pointee.cont?(callback.pointer, allowed ? CEF_PERMISSION_RESULT_ACCEPT : CEF_PERMISSION_RESULT_DENY)
@@ -736,9 +722,9 @@ final class CEFBrowser: @unchecked Sendable {
         }
     }
 
-    private static func contextMenuParams(_ params: UnsafeMutablePointer<cef_context_menu_params_t>) -> CEFContextMenuParams {
+    private static func contextMenuParams(_ params: UnsafeMutablePointer<cef_context_menu_params_t>) -> ContextMenuParams {
         let p = params.pointee
-        let mediaType: CEFContextMenuParams.MediaType = switch p.get_media_type?(params) {
+        let mediaType: ContextMenuParams.MediaType = switch p.get_media_type?(params) {
         case CM_MEDIATYPE_IMAGE: .image
         case CM_MEDIATYPE_VIDEO: .video
         case CM_MEDIATYPE_AUDIO: .audio
@@ -746,7 +732,7 @@ final class CEFBrowser: @unchecked Sendable {
         case CM_MEDIATYPE_NONE, nil: .none
         default: .other
         }
-        return CEFContextMenuParams(
+        return ContextMenuParams(
             linkURL: String(cefUserFree: p.get_link_url?(params)),
             sourceURL: String(cefUserFree: p.get_source_url?(params)),
             pageURL: String(cefUserFree: p.get_page_url?(params)),
@@ -759,8 +745,8 @@ final class CEFBrowser: @unchecked Sendable {
         )
     }
 
-    private static func permissionKinds(_ mask: UInt32) -> Set<CEFPermissionRequest.Kind> {
-        var kinds = Set<CEFPermissionRequest.Kind>()
+    private static func permissionKinds(_ mask: UInt32) -> Set<PermissionRequest.Kind> {
+        var kinds = Set<PermissionRequest.Kind>()
         if mask & CEF_PERMISSION_TYPE_GEOLOCATION.rawValue != 0 { kinds.insert(.location) }
         if mask & CEF_PERMISSION_TYPE_NOTIFICATIONS.rawValue != 0 { kinds.insert(.notifications) }
         if mask & CEF_PERMISSION_TYPE_CLIPBOARD.rawValue != 0 { kinds.insert(.clipboard) }
@@ -774,7 +760,7 @@ final class CEFBrowser: @unchecked Sendable {
 
 /// One-shot `cef_download_image_callback_t`.
 private final class CEFImageRequest: @unchecked Sendable {
-    @MainActor var completion: ((NSImage?) -> Void)?
+    @MainActor var completion: ((Data?) -> Void)?
     private(set) var callback: CefHandler<cef_download_image_callback_t>!
 
     init() {
@@ -784,7 +770,7 @@ private final class CEFImageRequest: @unchecked Sendable {
                 let png = CEFImageRequest.pngData(image)
                 cefRelease(image)
                 MainActor.assumeIsolated {
-                    request?.completion?(png.flatMap(NSImage.init(data:)))
+                    request?.completion?(png)
                     request?.completion = nil
                 }
             }

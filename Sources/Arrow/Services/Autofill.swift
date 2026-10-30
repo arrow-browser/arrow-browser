@@ -1,4 +1,5 @@
 import AppKit
+import ArrowCore
 import ArrowKit
 import Foundation
 import Security
@@ -260,7 +261,7 @@ extension WebTab {
     private var pageHost: String? { URLDisplay.host(of: url) }
 
     /// After a page loads: the observer, fill offers and the translate prompt.
-    func runAutofill(_ browser: CEFBrowser) {
+    func runAutofill(_ browser: any BrowserEngine) {
         guard let store, url.hasPrefix("http") else { return }
         if case .fillPassword? = offer?.kind { offer = nil }
         if case .fillCard? = offer?.kind { offer = nil }
@@ -284,7 +285,7 @@ extension WebTab {
         offerTranslation(browser, settings: store.settings)
     }
 
-    private func offerTranslation(_ browser: CEFBrowser, settings: ArrowSettings) {
+    private func offerTranslation(_ browser: any BrowserEngine, settings: ArrowSettings) {
         Task {
             let language = await browser.evaluateJavaScript("document.documentElement.lang") as? String
             guard PageTranslation.shouldOffer(pageLanguage: language, userLanguages: Locale.preferredLanguages, url: url,

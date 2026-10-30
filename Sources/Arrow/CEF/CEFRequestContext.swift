@@ -51,7 +51,7 @@ final class CEFRequestContext: @unchecked Sendable {
     }
 
     /// Deletes the cookies of `url`'s site (or every cookie when nil).
-    func deleteCookies(url: String? = nil) {
+    func deleteCookies(url: String?) {
         guard let manager = CefRef(adopting: ref.pointer.pointee.get_cookie_manager?(ref.pointer, nil)) else { return }
         withOptionalCefString(url) { url in
             _ = manager.pointer.pointee.delete_cookies?(manager.pointer, url, nil, nil)

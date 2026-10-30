@@ -1,3 +1,4 @@
+import ArrowCore
 import ArrowKit
 import Foundation
 import Observation
@@ -17,7 +18,7 @@ final class CastController {
         case casting(sinkID: String)
     }
 
-    private(set) var sinks: [CEFMediaSink] = []
+    private(set) var sinks: [MediaSink] = []
     private(set) var status: Status = .idle
     /// "PLAYING", "PAUSED", "BUFFERING" or "IDLE", as the device reports it.
     private(set) var playerState: String?
@@ -26,9 +27,9 @@ final class CastController {
     /// Device lists reported by Chromium since launch (Debug diagnostics).
     @ObservationIgnored private(set) var sinkReports = 0
 
-    @ObservationIgnored private var router: CEFMediaRouter?
-    @ObservationIgnored private var routerContext: CEFRequestContext?
-    @ObservationIgnored private var route: CEFMediaRoute?
+    @ObservationIgnored private var router: (any MediaRouter)?
+    @ObservationIgnored private var routerContext: (any BrowsingContext)?
+    @ObservationIgnored private var route: (any MediaRoute)?
     /// Paused once its media plays on the device.
     @ObservationIgnored private weak var sourceTab: WebTab?
     @ObservationIgnored private var sessionID: String?
@@ -45,10 +46,10 @@ final class CastController {
     }
 
     /// Looks for devices while the Cast popover is open (or while casting).
-    func startDiscovery(context: CEFRequestContext) {
+    func startDiscovery(context: any BrowsingContext) {
         if router == nil || routerContext !== context, route == nil {
             router?.stopDiscovery()
-            router = CEFMediaRouter(context: context)
+            router = context.makeMediaRouter()
             routerContext = context
             sinks = []
             router?.onSinks = { [weak self] sinks in
@@ -71,7 +72,7 @@ final class CastController {
 
     /// Launches the Default Media Receiver on `sink` and loads `media` once
     /// the session is up (see `receive(_:on:)`).
-    func cast(_ media: CastMedia, to sink: CEFMediaSink, from tab: WebTab?) async {
+    func cast(_ media: CastMedia, to sink: MediaSink, from tab: WebTab?) async {
         guard let router else { return }
         if route != nil { stop() }
         self.media = media
@@ -110,7 +111,7 @@ final class CastController {
         status = .idle
     }
 
-    private func routeDidChange(_ routeID: String, _ state: CEFMediaRouter.RouteState) {
+    private func routeDidChange(_ routeID: String, _ state: MediaRouteState) {
         guard routeID == route?.id else { return }
         switch state {
         case .closed, .terminated: reset()

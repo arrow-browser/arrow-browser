@@ -1,4 +1,5 @@
 import AppKit
+import ArrowCore
 import ArrowKit
 import SwiftUI
 
@@ -224,9 +225,9 @@ extension BrowserWindowController {
                 "width": 430, "height": 932, "deviceScaleFactor": 0, "mobile": true,
             ])
             try? await Task.sleep(for: .milliseconds(600))
-            let image = await engine.captureScreenshot(clip: nil)
+            let data = await engine.captureScreenshot(clip: nil)
             _ = await engine.devToolsMethod("Emulation.clearDeviceMetricsOverride")
-            guard let image else { return }
+            guard let data, let image = NSImage(data: data) else { return }
             NSPasteboard.general.clearContents()
             NSPasteboard.general.writeObjects([image])
             if !isIncognito { MediaLibrary.saveCapture(image, from: tab, in: store) }

@@ -1,4 +1,5 @@
 import AppKit
+import ArrowCore
 import ArrowKit
 import SwiftUI
 
@@ -118,7 +119,7 @@ struct ExtensionsMenuButton: View {
 
 /// Popover showing an extension's action popup, sized to its content.
 @MainActor
-final class ExtensionPopupController: NSObject, NSPopoverDelegate, CEFBrowserDelegate {
+final class ExtensionPopupController: NSObject, NSPopoverDelegate, BrowserEngineDelegate {
     private static var current: ExtensionPopupController?
 
     private let popover = NSPopover()
@@ -128,7 +129,7 @@ final class ExtensionPopupController: NSObject, NSPopoverDelegate, CEFBrowserDel
         current?.popover.close()
         guard let contentView = controller.window?.contentView else { return }
         let profileID = controller.selectedSpace?.profileID ?? controller.store.state.defaultProfile.id
-        let popup = ExtensionPopupController(context: controller.store.requestContext(for: profileID))
+        let popup = ExtensionPopupController(context: controller.store.cefContext(for: profileID))
         current = popup
         // Anchored under the sidebar address field.
         let width = controller.store.settings.sidebarWidth
@@ -156,11 +157,11 @@ final class ExtensionPopupController: NSObject, NSPopoverDelegate, CEFBrowserDel
         popover.delegate = self
     }
 
-    func browser(_ browser: CEFBrowser, didAutoResize size: CGSize) {
+    func browser(_ browser: any BrowserEngine, didAutoResize size: CGSize) {
         popover.contentSize = size
     }
 
-    func browserWillClose(_ browser: CEFBrowser) {
+    func browserWillClose(_ browser: any BrowserEngine) {
         // window.close() from the popup page.
         if !browser.isClosing { popover.close() }
     }
