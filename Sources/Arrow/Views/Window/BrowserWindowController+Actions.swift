@@ -1,4 +1,5 @@
 import AppKit
+import ArrowCore
 import ArrowKit
 
 /// Menu and keyboard commands of a browser window (see MainMenu.swift).
@@ -113,13 +114,13 @@ extension BrowserWindowController: NSMenuItemValidation {
     @objc func copyURL(_ sender: Any?) {
         guard let tab = selectedTab else { return }
         copyToPasteboard(tab.url, toast: "Copied URL to clipboard")
-        SoundEffects.play(.event, store: store)
+        store.playSound(.event)
     }
 
     @objc func copyURLAsMarkdown(_ sender: Any?) {
         guard let tab = selectedTab else { return }
         copyToPasteboard("[\(tab.displayTitle)](\(tab.url))", toast: "Copied URL as Markdown")
-        SoundEffects.play(.event, store: store)
+        store.playSound(.event)
     }
 
     @objc func copyURLAsQuote(_ sender: Any?) {
@@ -321,7 +322,7 @@ extension BrowserWindowController: NSMenuItemValidation {
         guard let id = state.selectedTabID else { return }
         let wasPinned = store.state.isPinned(id)
         store.update { $0.togglePin(id) }
-        SoundEffects.play(.event, store: store)
+        store.playSound(.event)
         if !wasPinned { AIFeatures.tidyTitle(of: id, in: store) }
         state.showToast(wasPinned ? "Unpinned Tab" : "Pinned Tab", symbol: wasPinned ? "pin.slash" : "pin")
     }
@@ -405,7 +406,7 @@ extension BrowserWindowController: NSMenuItemValidation {
         let kept: Set<UUID> = []
         var cleared: [Tab] = []
         store.update { cleared = $0.clearToday(in: state.selectedSpaceID, keeping: kept) }
-        if !cleared.isEmpty { SoundEffects.play(.event, store: store) }
+        if !cleared.isEmpty { store.playSound(.event) }
         for tab in cleared { store.discardRuntime(tab.id) }
         if let selected = state.selectedTabID, store.state.tab(selected) == nil {
             state.selectedTabID = nil

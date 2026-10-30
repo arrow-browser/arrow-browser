@@ -481,7 +481,7 @@ extension WebTab: BrowserEngineDelegate {
 
     func browser(_ browser: any BrowserEngine, openURL url: String, disposition: WindowOpenDisposition) -> Bool {
         // Preferences ▸ Links: ⌥⌘-click opens Little Arrow, Shift-click opens Peek.
-        let modifiers = NSEvent.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let modifiers = store?.platform.heldModifiers ?? []
         if let settings = store?.settings, disposition != .currentTab, disposition != .other {
             if modifiers.isSuperset(of: [.command, .option]), settings.littleArrowOnOptionCommandClick {
                 host?.tab(self, openInLittleArrow: url)
@@ -565,32 +565,24 @@ extension WebTab: BrowserEngineDelegate {
     }
 
     func browser(_ browser: any BrowserEngine, didSelectContextMenuItem id: Int, params: ContextMenuParams) {
-        let pasteboard = NSPasteboard.general
+        let platform = store?.platform
         switch id {
         case MenuID.openLinkInNewTab: host?.tab(self, openURL: params.linkURL, inBackground: true)
         case MenuID.openLinkInSplitView: host?.tab(self, openInSplitView: params.linkURL)
         case MenuID.openLinkInLittleArrow: host?.tab(self, openInLittleArrow: params.linkURL)
-        case MenuID.copyLink:
-            pasteboard.clearContents()
-            pasteboard.setString(params.linkURL, forType: .string)
+        case MenuID.copyLink: platform?.copyToClipboard(params.linkURL)
         case MenuID.saveLinkAs: browser.startDownload(url: params.linkURL)
         case MenuID.openImageInNewTab: host?.tab(self, openURL: params.sourceURL, inBackground: true)
-        case MenuID.copyImageAddress:
-            pasteboard.clearContents()
-            pasteboard.setString(params.sourceURL, forType: .string)
+        case MenuID.copyImageAddress: platform?.copyToClipboard(params.sourceURL)
         case MenuID.saveImageAs: browser.startDownload(url: params.sourceURL)
-        case MenuID.copySelection:
-            pasteboard.clearContents()
-            pasteboard.setString(params.selectionText, forType: .string)
+        case MenuID.copySelection: platform?.copyToClipboard(params.selectionText)
         case MenuID.searchSelection:
             let engine = store?.settings.searchEngine ?? .google
             host?.tab(self, openURL: engine.searchURL(for: params.selectionText), inBackground: false)
         case MenuID.back: goBack()
         case MenuID.forward: goForward()
         case MenuID.reload: reload()
-        case MenuID.copyPageURL:
-            pasteboard.clearContents()
-            pasteboard.setString(url, forType: .string)
+        case MenuID.copyPageURL: platform?.copyToClipboard(url)
         case MenuID.capture: host?.tabRequestsCapture(self)
         case MenuID.boost: host?.tabRequestsBoostEditor(self)
         case MenuID.print: browser.print()
@@ -658,7 +650,7 @@ extension WebTab {
     /// Arc's `--arc-palette-*` CSS variables, read by sites that adapt to the browser theme.
     private func themeScript(_ store: BrowserStore) -> String? {
         guard let spaceID = store.state.location(of: id)?.spaceID, let space = store.state.space(spaceID) else { return nil }
-        let isDark = space.theme.isDark(systemIsDark: NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua)
+        let isDark = space.theme.isDark(systemIsDark: store.platform.isDarkAppearance)
         let palette = space.theme.palette(isDark: isDark)
         let variables: [(String, RGBColor)] = [
             ("background", palette.backgroundStops.first ?? palette.accent),
@@ -681,9 +673,8 @@ extension WebTab {
               let quote = try? JSONDecoder().decode([String: String].self, from: data),
               let text = quote["text"], let link = quote["url"] else { return }
         let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map { "> \($0)" }.joined(separator: "\n")
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString("\(lines)\n\n— [\(displayTitle)](\(link))", forType: .string)
-        SoundEffects.play(.event, store: store)
+        store?.platform.copyToClipboard("\(lines)\n\n— [\(displayTitle)](\(link))")
+        store?.playSound(.event)
     }
 
     /// A "Copy Quote" button over highlighted text; the link scrolls to the

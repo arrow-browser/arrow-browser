@@ -1,4 +1,5 @@
 import AppKit
+import ArrowCore
 import ArrowKit
 import Foundation
 import Observation
@@ -91,13 +92,14 @@ final class ExtensionManager {
         }
     }
 
+    /// Installs an extension for `store`'s engine and platform.
     @discardableResult
-    func install(_ reference: String) async throws -> Extension {
+    func install(_ reference: String, using store: BrowserStore) async throws -> Extension {
         guard let id = Self.extensionID(from: reference) else { throw Failure.invalidReference }
         installing.insert(id)
         defer { installing.remove(id) }
 
-        let version = "\(CEFVersion.chromium)"
+        let version = store.engine.chromiumVersion
         let query = "response=redirect&prodversion=\(version)&acceptformat=crx3&x=id%3D\(id)%26installsource%3Dondemand%26uc"
         let url = URL(string: "https://clients2.google.com/service/update2/crx?\(query)")!
         let (data, response) = try await URLSession.shared.data(from: url)
@@ -105,7 +107,7 @@ final class ExtensionManager {
         guard status == 200 else { throw Failure.download(status) }
 
         let package = try CRXPackage(data: data, expectedID: id)
-        let manifest = try await Self.unpack(package, into: directory)
+        let manifest = try await Self.unpack(package, into: directory, platform: store.platform)
         let installed = Extension(id: id, name: manifest.name, version: manifest.version, isEnabled: true,
                                   popup: manifest.popup, options: manifest.options, icon: manifest.icon, directory: id)
         extensions.removeAll { $0.id == id }
@@ -123,7 +125,8 @@ final class ExtensionManager {
     }
 
     /// Unzips the archive and pins the extension ID with the publisher key.
-    private nonisolated static func unpack(_ package: CRXPackage, into root: URL) async throws -> ManifestSummary {
+    private nonisolated static func unpack(_ package: CRXPackage, into root: URL,
+                                           platform: any Platform) async throws -> ManifestSummary {
         let fileManager = FileManager.default
         let destination = root.appendingPathComponent(package.id, isDirectory: true)
         let staging = root.appendingPathComponent(".\(package.id)-\(UUID().uuidString)", isDirectory: true)
@@ -132,12 +135,7 @@ final class ExtensionManager {
         try package.archive.write(to: zip)
         let unpacked = staging.appendingPathComponent("unpacked", isDirectory: true)
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-        process.arguments = ["-x", "-k", zip.path, unpacked.path]
-        try process.run()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { throw CRXPackage.Failure.malformed }
+        try platform.unzip(zip, into: unpacked)
 
         let manifestURL = unpacked.appendingPathComponent("manifest.json")
         guard var manifest = try JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL)) as? [String: Any] else {

@@ -75,6 +75,7 @@ At `e4de7af`, Arrow is about 19,600 lines of Swift:
     which the views convert to SwiftUI's `TextSelection`.
 - Put platform services behind protocols implemented by each app (see
   [Platform services](#platform-services)).
+  - Done: `Platform` in `ArrowCore`, implemented on macOS by `MacPlatform`.
 - Draw the engine boundary: the model and the views talk to a browser
   protocol, which `CEFBrowser` implements.
   - Done: `BrowserEngine`, `BrowsingContext` and `EngineRuntime` in
@@ -135,6 +136,14 @@ What each app implements behind the protocols of phase 3:
 | File thumbnails (`MediaLibrary`) | QuickLook | Shell thumbnail API | None |
 | Updates (`Updater`) | Appcast, EdDSA | Same appcast, Windows installer | Packaging system |
 | Import from other browsers (`BrowserImporter`) | Profiles under `~/Library` | Profiles under `%LOCALAPPDATA%` | Profiles under `~/.config` |
+
+The shared code reaches the first rows through ArrowCore's `Platform`
+protocol: `credentials` (logins, cards) and `cloudSecrets` (Arrow Cloud),
+and `apply(_:previous:)` for the settings each app applies itself (global
+shortcut, menu shortcuts). `Platform` also covers the clipboard, sounds,
+held keyboard modifiers, the system appearance, revealing and opening
+downloads, and unzipping extensions. The other rows only concern each app's
+own UI and stay there.
 
 ## Rules while porting
 

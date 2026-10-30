@@ -117,6 +117,16 @@ can be shared by every platform:
 `NSView` hosting a browser, sized popups, site settings) casts to the CEF
 types.
 
+## Platform services
+
+What the model needs from the operating system goes through ArrowCore's
+`Platform` protocol: saved logins and cards (`CredentialStore`), Arrow
+Cloud's secrets (`SecretStore`), the clipboard, sounds, held keyboard
+modifiers, the system appearance, revealing and opening files, unzipping, and
+the settings applied by the app (global shortcut, menu shortcuts).
+`MacPlatform` implements it with AppKit, the Keychain (`Keychain.swift`) and
+Carbon. `BrowserStore` receives it with the engine.
+
 ## Profiles and incognito
 
 Each profile is a Chromium request context with its own cache directory
