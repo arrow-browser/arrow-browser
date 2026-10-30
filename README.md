@@ -48,9 +48,10 @@ The CEF builds have no proprietary codecs: H.264/AAC videos (most `.mp4`
 files) don't play. YouTube and most sites also serve VP9, AV1 or Opus, which
 do.
 
-On Windows and Linux, only the shared packages build for now (see
-[portability](docs/PORTABILITY.md)): `swift test` in `Packages/ArrowKit`, and
-`cef-shell`, a window with one browser:
+On Windows, the app is being built in `Windows/` (see
+[Windows/README.md](Windows/README.md)). On Linux, only the shared packages
+build for now (see [portability](docs/PORTABILITY.md)): `swift test` in
+`Packages/ArrowKit`, and `cef-shell`, a window with one browser:
 
 ```sh
 ./scripts/fetch-cef.sh                          # CEF for this machine
@@ -130,6 +131,7 @@ Sparkle does.
 | `Sources/Arrow/Services` | macOS services: Keychain, global shortcut, import from other browsers, updates, media library |
 | `Sources/ArrowHelper` | Chromium sub-process entry point (renderer, GPU…) |
 | `Packages/ArrowCEF` | Swift layer over the CEF C API (runtime, browsers, handlers, ref counting) and the `CEF` Clang module exposing its headers; `cef-shell`, a window with one browser on Windows and Linux |
+| `Windows` | The Windows app (WinUI 3 through swift-winrt), in progress |
 | `Packages/ArrowKit` | Engine-independent model: spaces, tabs, themes, URL parsing, history, boosts; `ArrowCore`, the app state shared by every platform; `ArrowEngine`, the protocols it uses to drive the engine |
 | `server/` | Go server replacing Arc's cloud services |
 | `docs/` | [Architecture](docs/ARCHITECTURE.md), [feature parity](docs/FEATURES.md), [Arc services](docs/ARC_SERVICES.md), [portability](docs/PORTABILITY.md) |

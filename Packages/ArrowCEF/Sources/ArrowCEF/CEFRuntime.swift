@@ -20,6 +20,13 @@ public final class CEFRuntime: @unchecked Sendable {
     /// Extra command-line switches of the browser process (set before
     /// `initialize()`), e.g. `load-extension`.
     public var browserSwitches: [(name: String, value: String?)] = []
+    /// The app runs its own message loop and calls `doMessageLoopWork()` when
+    /// `onScheduleMessagePumpWork` asks for it, instead of `runMessageLoop()`
+    /// (set before `initialize()`). For apps whose UI toolkit owns the loop.
+    public var usesExternalMessagePump = false
+    /// Called on any thread with the delay, in milliseconds, after which
+    /// `doMessageLoopWork()` should run (as soon as possible when <= 0).
+    public var onScheduleMessagePumpWork: (@Sendable (_ delay: Int64) -> Void)?
 
     private var app: CefHandler<cef_app_t>!
     private var browserProcessHandler: CefHandler<cef_browser_process_handler_t>!
@@ -66,6 +73,9 @@ public final class CEFRuntime: @unchecked Sendable {
                 }
                 MainActor.assumeIsolated { runtime.onRelaunch?(arguments) }
                 return 1
+            }
+            handler.on_schedule_message_pump_work = { handler, delay in
+                CefHandler.owner(of: handler, as: CEFRuntime.self)?.onScheduleMessagePumpWork?(delay)
             }
             handler.on_context_initialized = { handler in
                 guard let runtime = CefHandler.owner(of: handler, as: CEFRuntime.self) else { return }
@@ -132,6 +142,7 @@ public final class CEFRuntime: @unchecked Sendable {
         settings.no_sandbox = 0
         #endif
         settings.persist_session_cookies = 1
+        settings.external_message_pump = usesExternalMessagePump ? 1 : 0
         settings.log_severity = LOGSEVERITY_WARNING
         settings.background_color = 0xFFFF_FFFF
         settings.root_cache_path.set(rootCachePath.cefPath)
@@ -213,6 +224,12 @@ public final class CEFRuntime: @unchecked Sendable {
     #if !os(macOS)
     private lazy var mainQueuePump = MainQueuePump()
     #endif
+
+    /// One iteration of CEF's work, with `usesExternalMessagePump`.
+    @MainActor
+    public func doMessageLoopWork() {
+        cef_do_message_loop_work()
+    }
 
     @MainActor
     public func quitMessageLoop() {

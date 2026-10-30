@@ -17,6 +17,11 @@
 # CEF binary distribution (fetched by scripts/fetch-cef.sh)
 /Vendor/cef/
 
+# Windows app: NuGet packages and WinRT projections (Windows/generate-winrt.ps1)
+/Windows/.packages/
+/Windows/Sources/CWinRT/
+/Windows/Sources/*/Generated/
+
 # Secrets
 .env
 .env.*
