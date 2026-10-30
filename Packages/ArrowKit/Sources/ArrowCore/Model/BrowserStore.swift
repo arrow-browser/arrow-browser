@@ -87,7 +87,7 @@ public final class BrowserStore {
 
     /// Ephemeral store of an incognito window.
     public init(incognitoWith settings: ArrowSettings, downloads: DownloadManager, engine: any EngineRuntime,
-         platform: any Platform) {
+                platform: any Platform) {
         self.engine = engine
         self.platform = platform
         dataDirectory = FileManager.default.temporaryDirectory
@@ -151,7 +151,7 @@ public final class BrowserStore {
 
     /// Merges spaces and favorites received from another device.
     public func applyRemote(spaces remote: [UUID: Space], deleted: Set<UUID>, favorites: [String: [Tab]]?, order: [UUID]?,
-                     profiles: [Profile]?) {
+                            profiles: [Profile]?) {
         let before = Set(state.spaces.flatMap(\.allTabs).map(\.id))
         if let profiles {
             for profile in profiles where state.profile(profile.id) == nil {

@@ -474,7 +474,7 @@ extension WebTab: BrowserEngineDelegate {
     }
 
     public func browser(_ browser: any BrowserEngine, createPopupFor url: String, disposition: WindowOpenDisposition,
-                 userGesture: Bool, features: PopupFeatures) -> (any BrowserEngine)? {
+                        userGesture: Bool, features: PopupFeatures) -> (any BrowserEngine)? {
         host?.tab(self, createPopupFor: url, features: features)
     }
 
@@ -592,7 +592,7 @@ extension WebTab: BrowserEngineDelegate {
     }
 
     public func browser(_ browser: any BrowserEngine, requestsPermission request: PermissionRequest,
-                 decision: @escaping @MainActor (Bool) -> Void) -> Bool {
+                        decision: @escaping @MainActor (Bool) -> Void) -> Bool {
         permissionRequest?.decide(false)
         permissionRequest = PendingPermission(request: request) { [weak self] allowed in
             decision(allowed)

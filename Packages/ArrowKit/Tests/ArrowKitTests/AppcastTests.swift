@@ -40,10 +40,10 @@ struct AppcastTests {
         #expect(Appcast.latest(in: items, currentShortVersion: "1.10.0", currentVersion: "1") == nil)
     }
 
-    @Test func verifiesEdDSASignatures() {
+    @Test func verifiesEdDSASignatures() throws {
         let key = Curve25519.Signing.PrivateKey()
         let archive = Data("update archive".utf8)
-        let signature = try! key.signature(for: archive).base64EncodedString()
+        let signature = try key.signature(for: archive).base64EncodedString()
         let publicKey = key.publicKey.rawRepresentation.base64EncodedString()
         let item = AppcastItem(version: "2", shortVersion: "2.0", url: "u", length: archive.count, edSignature: signature)
 
