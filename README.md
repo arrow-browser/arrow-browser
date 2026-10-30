@@ -44,6 +44,10 @@ URLs passed on the command line open as tabs:
 `Arrow.app/Contents/MacOS/Arrow https://example.com`. Switches (`--flag`) and
 Cocoa defaults (`-AppleLanguages "(en-US)"`) are not opened.
 
+The CEF builds have no proprietary codecs: H.264/AAC videos (most `.mp4`
+files) don't play. YouTube and most sites also serve VP9, AV1 or Opus, which
+do.
+
 On Windows and Linux, only the shared packages build for now (see
 [portability](docs/PORTABILITY.md)): `swift test` in `Packages/ArrowKit`, and
 `cef-shell`, a window with one browser:
@@ -54,6 +58,27 @@ cd Packages/ArrowCEF && swift build --product cef-shell
 ../../scripts/stage-cef.sh "$(swift build --show-bin-path)"
 "$(swift build --show-bin-path)/cef-shell"
 ```
+
+### Distributing a build
+
+```sh
+make dist TEAM=<team ID>               # dist/Arrow-<version>.dmg, Developer ID signed
+make dist TEAM=<team ID> NOTARIZE=1    # also notarized by Apple and stapled
+```
+
+Signing goes through the Apple account set up in Xcode (Settings ▸ Accounts),
+with the team's cloud-managed Developer ID certificate. The app uses the
+hardened runtime; the Chromium helpers get the same entitlements as Chrome's
+(JIT for the renderer and GPU helpers). A build that isn't notarized opens
+only after **System Settings ▸ Privacy & Security ▸ Open Anyway**.
+
+Pushing a version tag (`git tag v1.2.0 && git push origin v1.2.0`) runs
+`.github/workflows/release.yml`: it builds the app with the version of the tag,
+signs it with the Developer ID certificate, has Apple notarize it, and
+publishes `Arrow-<version>.dmg` and the update archive `Arrow-<version>.zip`
+in a GitHub release. The secrets it needs are listed at the top of the
+workflow. When `ARROW_UPDATE_PRIVATE_KEY` is set, the run summary shows the
+entry to add to the server's `releases/releases.json`.
 
 ### Server (optional)
 

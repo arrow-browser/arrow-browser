@@ -82,33 +82,35 @@ targets:
         link: false
         copy:
           destination: plugins
+      # The helpers are signed by their own targets, with their entitlements:
+      # signing them again on copy would drop those.
       - target: Arrow Helper
         embed: true
-        codeSign: true
+        codeSign: false
         link: false
         copy:
           destination: frameworks
       - target: Arrow Helper (GPU)
         embed: true
-        codeSign: true
+        codeSign: false
         link: false
         copy:
           destination: frameworks
       - target: Arrow Helper (Renderer)
         embed: true
-        codeSign: true
+        codeSign: false
         link: false
         copy:
           destination: frameworks
       - target: Arrow Helper (Plugin)
         embed: true
-        codeSign: true
+        codeSign: false
         link: false
         copy:
           destination: frameworks
       - target: Arrow Helper (Alerts)
         embed: true
-        codeSign: true
+        codeSign: false
         link: false
         copy:
           destination: frameworks
@@ -150,10 +152,13 @@ targets:
           ln -sfn Versions/Current/Resources "$FW/Resources"
           ln -sfn Versions/Current/Libraries "$FW/Libraries"
           IDENTITY="${EXPANDED_CODE_SIGN_IDENTITY:--}"
+          # Notarization requires a secure timestamp; ad-hoc builds skip it.
+          TIMESTAMP=--timestamp
+          if [ "$IDENTITY" = "-" ]; then TIMESTAMP=--timestamp=none; fi
           for LIB in "$FW/Versions/A/Libraries/"*.dylib; do
-            codesign --force --sign "$IDENTITY" --timestamp=none "$LIB"
+            codesign --force --sign "$IDENTITY" "$TIMESTAMP" "$LIB"
           done
-          codesign --force --sign "$IDENTITY" --timestamp=none "$FW"
+          codesign --force --sign "$IDENTITY" "$TIMESTAMP" "$FW"
 
   DockTilePlugIn:
     type: bundle
@@ -174,21 +179,32 @@ targets:
     templateAttributes:
       suffix: ""
       bundleSuffix: ""
+  # Entitlements of the helpers under the hardened runtime (make dist), as
+  # in Chrome: V8 and SwiftShader need JIT, plugins load unsigned code.
   Arrow Helper (GPU):
     templates: [ChromiumHelper]
     templateAttributes:
       suffix: " (GPU)"
       bundleSuffix: ".gpu"
+    settings:
+      base:
+        CODE_SIGN_ENTITLEMENTS: Resources/Helper-JIT.entitlements
   Arrow Helper (Renderer):
     templates: [ChromiumHelper]
     templateAttributes:
       suffix: " (Renderer)"
       bundleSuffix: ".renderer"
+    settings:
+      base:
+        CODE_SIGN_ENTITLEMENTS: Resources/Helper-JIT.entitlements
   Arrow Helper (Plugin):
     templates: [ChromiumHelper]
     templateAttributes:
       suffix: " (Plugin)"
       bundleSuffix: ".plugin"
+    settings:
+      base:
+        CODE_SIGN_ENTITLEMENTS: Resources/Helper-Plugin.entitlements
   Arrow Helper (Alerts):
     templates: [ChromiumHelper]
     templateAttributes:
