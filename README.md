@@ -97,7 +97,7 @@ Sparkle does.
 | `Sources/ArrowHelper` | Chromium sub-process entry point (renderer, GPU…) |
 | `Packages/ArrowKit` | Engine-independent model: spaces, tabs, themes, URL parsing, history, boosts |
 | `server/` | Go server replacing Arc's cloud services |
-| `docs/` | [Architecture](docs/ARCHITECTURE.md), [feature parity](docs/FEATURES.md), [Arc services](docs/ARC_SERVICES.md) |
+| `docs/` | [Architecture](docs/ARCHITECTURE.md), [feature parity](docs/FEATURES.md), [Arc services](docs/ARC_SERVICES.md), [portability](docs/PORTABILITY.md) |
 
 ## Data
 

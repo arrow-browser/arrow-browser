@@ -67,7 +67,8 @@ and `on_before_close` completes the close.
 ## Model
 
 `Packages/ArrowKit` holds everything that does not depend on the engine, so it
-can be unit tested with `swift test`:
+can be unit tested with `swift test`, on macOS and Linux (see
+[Portability](PORTABILITY.md)):
 
 - **`BrowserState`**: profiles, spaces (pinned and today trees of
   `SidebarNode`: tab, folder or split view), favorites per profile and the
