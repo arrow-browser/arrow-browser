@@ -7,13 +7,10 @@
 #define CEF_API_VERSION 15600
 
 #if defined(_WIN32)
-// Swift's WinSDK module splits windows.h into submodules: include the ones
-// declaring the types CEF's Windows headers use (HWND, HCURSOR, MSG…).
-#include <windows.h>
-#include <minwindef.h>
-#include <winnt.h>
-#include <windef.h>
-#include <winuser.h>
+// windows.h belongs to none of Swift's WinSDK modules, so the types CEF's
+// Windows headers use (HWND, HCURSOR, MSG…) are only visible here through a
+// module that includes it, such as WinSock2's.
+#include <WinSock2.h>
 #endif
 
 #include "include/cef_api_hash.h"
