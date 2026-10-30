@@ -1,6 +1,6 @@
-import CryptoKit
+import Crypto
+import CryptoExtras
 import Foundation
-import Security
 
 /// A Chrome Web Store package (CRX3): signature verification and payload.
 ///
@@ -64,9 +64,12 @@ public struct CRXPackage: Sendable {
         message.append(Data(bytes: &length, count: 4))
         message.append(contentsOf: signedHeaderData)
         message.append(archive)
-        guard let rsaKey = Self.rsaPublicKey(fromSubjectPublicKeyInfo: proof.key),
-              SecKeyVerifySignature(rsaKey, .rsaSignatureMessagePKCS1v15SHA256, message as CFData,
-                                    Data(proof.signature) as CFData, nil) else { throw Failure.invalidSignature }
+        // Older extensions have 1024-bit publisher keys ("MIGf…" manifest
+        // keys), which Chrome still accepts: the unsafe initializer allows
+        // them (1024 bits minimum) where the default one requires 2048.
+        guard let rsaKey = try? _RSA.Signing.PublicKey(unsafeDERRepresentation: proof.key),
+              rsaKey.isValidSignature(_RSA.Signing.RSASignature(rawRepresentation: proof.signature),
+                                      for: SHA256.hash(data: message), padding: .insecurePKCS1v1_5) else { throw Failure.invalidSignature }
 
         id = expectedID
         publicKey = Data(proof.key)
@@ -127,42 +130,5 @@ public struct CRXPackage: Sendable {
 
     private static func u32(_ bytes: [UInt8], _ offset: Int) -> UInt32 {
         UInt32(bytes[offset]) | UInt32(bytes[offset + 1]) << 8 | UInt32(bytes[offset + 2]) << 16 | UInt32(bytes[offset + 3]) << 24
-    }
-
-    // MARK: ASN.1
-
-    /// Extracts the PKCS#1 RSAPublicKey from a DER SubjectPublicKeyInfo.
-    static func rsaPublicKey(fromSubjectPublicKeyInfo spki: [UInt8]) -> SecKey? {
-        var index = 0
-        func readLength() -> Int? {
-            guard index < spki.count else { return nil }
-            let first = spki[index]
-            index += 1
-            if first & 0x80 == 0 { return Int(first) }
-            let count = Int(first & 0x7F)
-            guard count <= 4, index + count <= spki.count else { return nil }
-            var length = 0
-            for _ in 0..<count {
-                length = length << 8 | Int(spki[index])
-                index += 1
-            }
-            return length
-        }
-        // SEQUENCE { SEQUENCE { algorithm }, BIT STRING { 0x00, RSAPublicKey } }
-        guard spki.first == 0x30 else { return nil }
-        index = 1
-        guard readLength() != nil, index < spki.count, spki[index] == 0x30 else { return nil }
-        index += 1
-        guard let algorithmLength = readLength() else { return nil }
-        index += algorithmLength
-        guard index < spki.count, spki[index] == 0x03 else { return nil }
-        index += 1
-        guard let bitStringLength = readLength(), index + bitStringLength <= spki.count, spki[index] == 0x00 else { return nil }
-        let pkcs1 = Data(spki[(index + 1)..<(index + bitStringLength)])
-        let attributes: [String: Any] = [
-            kSecAttrKeyType as String: kSecAttrKeyTypeRSA,
-            kSecAttrKeyClass as String: kSecAttrKeyClassPublic,
-        ]
-        return SecKeyCreateWithData(pkcs1 as CFData, attributes as CFDictionary, nil)
     }
 }

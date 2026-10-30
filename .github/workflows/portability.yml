@@ -1,0 +1,31 @@
+# Keeps Arrow's shared code building and tested outside macOS
+# (docs/PORTABILITY.md). Windows joins in phase 2.
+name: Portability
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  arrowkit-linux:
+    name: ArrowKit on Linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: swift:6.4.1-noble@sha256:6304481cf2717966b7ba175162e397ea2f2cc3161909f2b2a5cf40036079a0f7
+    defaults:
+      run:
+        working-directory: Packages/ArrowKit
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: swift test

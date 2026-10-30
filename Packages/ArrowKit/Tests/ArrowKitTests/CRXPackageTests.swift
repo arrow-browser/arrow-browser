@@ -1,24 +1,17 @@
-import CryptoKit
+import Crypto
+import CryptoExtras
 import Foundation
-import Security
 import Testing
 @testable import ArrowKit
 
 /// Builds signed CRX3 packages to check `CRXPackage` verification.
 private struct CRXBuilder {
-    let privateKey: SecKey
+    let privateKey: _RSA.Signing.PrivateKey
     let spki: [UInt8]
 
-    init() throws {
-        let attributes: [String: Any] = [kSecAttrKeyType as String: kSecAttrKeyTypeRSA, kSecAttrKeySizeInBits as String: 2048]
-        var error: Unmanaged<CFError>?
-        guard let key = SecKeyCreateRandomKey(attributes as CFDictionary, &error),
-              let publicKey = SecKeyCopyPublicKey(key),
-              let pkcs1 = SecKeyCopyExternalRepresentation(publicKey, &error) as Data? else {
-            throw error!.takeRetainedValue()
-        }
-        privateKey = key
-        spki = Self.subjectPublicKeyInfo(pkcs1: [UInt8](pkcs1))
+    init(keySize: _RSA.Signing.KeySize = .bits2048) throws {
+        privateKey = try _RSA.Signing.PrivateKey(unsafeKeySize: keySize)
+        spki = Self.subjectPublicKeyInfo(pkcs1: [UInt8](privateKey.publicKey.pkcs1DERRepresentation))
     }
 
     var id: String { CRXPackage.extensionID(forKey: spki) }
@@ -31,11 +24,8 @@ private struct CRXBuilder {
         message.append(Data(bytes: &length, count: 4))
         message.append(contentsOf: signedData)
         message.append(archive)
-        var error: Unmanaged<CFError>?
-        guard let signature = SecKeyCreateSignature(privateKey, .rsaSignatureMessagePKCS1v15SHA256, message as CFData, &error) as Data? else {
-            throw error!.takeRetainedValue()
-        }
-        let proof = Self.field(1, spki) + Self.field(2, [UInt8](signature))
+        let signature = try privateKey.signature(for: SHA256.hash(data: message), padding: .insecurePKCS1v1_5)
+        let proof = Self.field(1, spki) + Self.field(2, [UInt8](signature.rawRepresentation))
         let header = Self.field(2, proof) + Self.field(10000, signedData)
         var crx = Data("Cr24".utf8)
         var version = UInt32(3).littleEndian
@@ -94,6 +84,12 @@ struct CRXPackageTests {
         #expect(package.id == builder.id)
         #expect(package.archive == archive)
         #expect(package.publicKey == Data(builder.spki))
+    }
+
+    @Test func acceptsLegacy1024BitKeys() throws {
+        let builder = try CRXBuilder(keySize: _RSA.Signing.KeySize(bitCount: 1024))
+        let package = try CRXPackage(data: builder.build(archive: archive), expectedID: builder.id)
+        #expect(package.id == builder.id)
     }
 
     @Test func rejectsTamperedArchive() throws {
