@@ -7,16 +7,16 @@ import (
 	"net/http"
 	"path/filepath"
 
-	"github.com/euskadi31/arrow-browser/server/internal/ai"
-	"github.com/euskadi31/arrow-browser/server/internal/auth"
-	"github.com/euskadi31/arrow-browser/server/internal/blocklist"
-	"github.com/euskadi31/arrow-browser/server/internal/config"
-	"github.com/euskadi31/arrow-browser/server/internal/docsync"
-	"github.com/euskadi31/arrow-browser/server/internal/feedback"
-	"github.com/euskadi31/arrow-browser/server/internal/httpx"
-	"github.com/euskadi31/arrow-browser/server/internal/remoteconfig"
-	"github.com/euskadi31/arrow-browser/server/internal/share"
-	"github.com/euskadi31/arrow-browser/server/internal/updates"
+	"github.com/arrow-browser/arrow-browser/server/internal/ai"
+	"github.com/arrow-browser/arrow-browser/server/internal/auth"
+	"github.com/arrow-browser/arrow-browser/server/internal/blocklist"
+	"github.com/arrow-browser/arrow-browser/server/internal/config"
+	"github.com/arrow-browser/arrow-browser/server/internal/docsync"
+	"github.com/arrow-browser/arrow-browser/server/internal/feedback"
+	"github.com/arrow-browser/arrow-browser/server/internal/httpx"
+	"github.com/arrow-browser/arrow-browser/server/internal/remoteconfig"
+	"github.com/arrow-browser/arrow-browser/server/internal/share"
+	"github.com/arrow-browser/arrow-browser/server/internal/updates"
 )
 
 // Server is the assembled application.

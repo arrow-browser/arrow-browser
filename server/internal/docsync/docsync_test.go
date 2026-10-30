@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/euskadi31/arrow-browser/server/internal/auth"
+	"github.com/arrow-browser/arrow-browser/server/internal/auth"
 )
 
 // fakeAuth authenticates "Bearer <userID>" as that user.
