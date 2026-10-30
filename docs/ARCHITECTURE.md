@@ -67,7 +67,7 @@ and `on_before_close` completes the close.
 ## Model
 
 `Packages/ArrowKit` holds everything that does not depend on the engine, so it
-can be unit tested with `swift test`, on macOS and Linux (see
+can be unit tested with `swift test`, on macOS, Linux and Windows (see
 [Portability](PORTABILITY.md)):
 
 - **`BrowserState`**: profiles, spaces (pinned and today trees of
