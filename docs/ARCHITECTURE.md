@@ -6,8 +6,8 @@
 ┌──────────────────────────── Arrow.app (browser process) ───────────────────────────┐
 │ SwiftUI views (Sidebar, ContentPanel, CommandBar, Library, Settings…)              │
 │        │ observe                                                                   │
-│ BrowserStore ── BrowserState (ArrowKit) ── JSONStore ─▶ ~/Library/…/Arrow/State    │
-│   │  WebTab (one per live tab) ── BrowserEngineDelegate (ArrowCore)                │
+│ BrowserStore (ArrowCore) ── BrowserState (ArrowKit) ── JSONStore ─▶ …/State        │
+│   │  WebTab (ArrowCore, one per live tab) ── BrowserEngine protocols               │
 │   │        │                                                                       │
 │   │  CEFBrowser ── cef_client_t + handlers implemented in Swift (CefHandler<T>)   │
 │   │        │ C API                                                                 │
@@ -83,20 +83,25 @@ can be unit tested with `swift test`, on macOS, Linux and Windows (see
 - **`History`, `Boost`, `ArrowSettings` (including Air Traffic Control),
   `Note`, `Easel`**.
 
-`ArrowCore`, a second library of the same package, receives the app state
-that every platform shares, as phase 3 of the [portability plan](PORTABILITY.md)
-moves it out of the app. It holds `CommandBarModel` so far.
+`ArrowCore`, a second library of the same package, holds the state and
+services that every platform shares, on top of ArrowKit and tested the same
+way, with a fake engine and platform:
 
-The app adds the runtime:
-
-- **`BrowserStore`** owns the state, persistence, the Chromium profiles and
-  the live `WebTab`s. It also runs maintenance every minute: auto-archive, and
-  discarding background tabs after an hour.
-- **`WebTab`** mirrors a page's state for SwiftUI and implements
+- **`BrowserStore`** owns the state, persistence, the profiles and the live
+  `WebTab`s. It also runs maintenance every minute: auto-archive, and
+  discarding background tabs after an hour. It receives the engine and the
+  platform services (see below).
+- **`WebTab`** mirrors a page's state for the UI and implements
   `BrowserEngineDelegate`: popups, Peek, context menus, permissions, media
-  detection, Boost injection.
-- **`WindowState`** and **`BrowserWindowController`** handle the selection,
-  the overlays and every menu command.
+  detection, Boost injection, Autofill.
+- **`WindowState`** and **`CommandBarModel`**: the selection, the overlays
+  and the command bar of a window.
+- **Services**: `DownloadManager`, `ExtensionManager`, `AdBlocker`,
+  `ArrowCloud`, `CastController`, `AIFeatures`, `FaviconCache`. Favicons and
+  page snapshots are PNG data (`PageImage`) that each app decodes.
+
+The macOS app adds the SwiftUI and AppKit views, `BrowserWindowController`
+(the window and every menu command), the CEF bindings and `MacPlatform`.
 
 ## Engine boundary
 

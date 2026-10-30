@@ -1,45 +1,44 @@
-import ArrowCore
 import Foundation
 import Observation
 
 /// Downloads of the session, shown in the sidebar and the Library.
 @MainActor
 @Observable
-final class DownloadManager: DownloadCenterDelegate {
-    struct Item: Identifiable, Equatable {
-        var id: UInt32
-        var fileName: String
-        var url: String
-        var destination: URL
-        var receivedBytes: Int64
-        var totalBytes: Int64
-        var state: Download.State
-        var startedAt: Date
+public final class DownloadManager: DownloadCenterDelegate {
+    public struct Item: Identifiable, Equatable {
+        public var id: UInt32
+        public var fileName: String
+        public var url: String
+        public var destination: URL
+        public var receivedBytes: Int64
+        public var totalBytes: Int64
+        public var state: Download.State
+        public var startedAt: Date
 
-        var fraction: Double {
+        public var fraction: Double {
             totalBytes > 0 ? Double(receivedBytes) / Double(totalBytes) : 0
         }
     }
 
-    private(set) var items: [Item] = []
+    public private(set) var items: [Item] = []
     /// Last download that finished, for the sidebar notification.
-    private(set) var recentlyCompleted: Item?
-    @ObservationIgnored weak var store: BrowserStore?
+    public private(set) var recentlyCompleted: Item?
+    @ObservationIgnored public weak var store: BrowserStore?
     @ObservationIgnored private let center: any DownloadCenter
     @ObservationIgnored private var tabsToClose: [UInt32: UUID] = [:]
 
-    init(center: any DownloadCenter) {
+    public init(center: any DownloadCenter) {
         self.center = center
     }
 
     /// Receives every download of the application.
-    func activate() {
+    public func activate() {
         center.delegate = self
     }
 
-    var activeCount: Int { items.filter { $0.state == .inProgress || $0.state == .paused }.count }
+    public var activeCount: Int { items.filter { $0.state == .inProgress || $0.state == .paused }.count }
 
-    func downloadCenter(destinationFor suggestedName: String) -> (url: URL, ask: Bool) {
+    public func downloadCenter(destinationFor suggestedName: String) -> (url: URL, ask: Bool) {
         // Preferences ▸ Profiles ▸ Download location.
         var directory = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
         if let settings = store?.settings, settings.downloadLocation == .folder, !settings.downloadFolder.isEmpty {
@@ -60,7 +59,7 @@ final class DownloadManager: DownloadCenterDelegate {
     /// Like Chrome, a Today tab opened only for a download is closed. Chromium
     /// stops reporting a download once its browser is gone, so the tab is
     /// closed when the download ends.
-    func downloadCenter(didStart downloadID: UInt32, inBrowser browserID: Int32) {
+    public func downloadCenter(didStart downloadID: UInt32, inBrowser browserID: Int32) {
         guard let tab = store?.tabs.values.first(where: { $0.engine?.identifier == browserID }),
               isBlankTodayTab(tab) else { return }
         tabsToClose[downloadID] = tab.id
@@ -73,7 +72,7 @@ final class DownloadManager: DownloadCenterDelegate {
         return committedURL.isEmpty || committedURL == "about:blank"
     }
 
-    func downloadCenter(didUpdate download: Download) {
+    public func downloadCenter(didUpdate download: Download) {
         let destination = download.fullPath.isEmpty ? nil : URL(fileURLWithPath: download.fullPath)
         let index: Int
         let wasComplete: Bool
@@ -116,24 +115,24 @@ final class DownloadManager: DownloadCenterDelegate {
         }
     }
 
-    func cancel(_ item: Item) { center.cancel(item.id) }
-    func pause(_ item: Item) { center.pause(item.id) }
-    func resume(_ item: Item) { center.resume(item.id) }
+    public func cancel(_ item: Item) { center.cancel(item.id) }
+    public func pause(_ item: Item) { center.pause(item.id) }
+    public func resume(_ item: Item) { center.resume(item.id) }
 
-    func reveal(_ item: Item) {
+    public func reveal(_ item: Item) {
         store?.platform.reveal(item.destination)
     }
 
-    func open(_ item: Item) {
+    public func open(_ item: Item) {
         store?.platform.open(item.destination)
     }
 
-    func clearFinished() {
+    public func clearFinished() {
         items.removeAll { $0.state != .inProgress && $0.state != .paused }
         recentlyCompleted = nil
     }
 
-    func dismissRecent() {
+    public func dismissRecent() {
         recentlyCompleted = nil
     }
 }

@@ -1,6 +1,8 @@
-import ArrowCore
 import ArrowKit
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import Observation
 
 /// Arrow's built-in ad and tracker blocker (Arc's ad blocker).
@@ -11,9 +13,9 @@ import Observation
 /// `ResourceFilter`.
 @MainActor
 @Observable
-final class AdBlocker {
-    private(set) var ruleCount = 0
-    private(set) var lastUpdate: Date?
+public final class AdBlocker {
+    public private(set) var ruleCount = 0
+    public private(set) var lastUpdate: Date?
     @ObservationIgnored private weak var store: BrowserStore?
     @ObservationIgnored private let filter: any ResourceFilter
     @ObservationIgnored private var blocker = ContentBlocker()
@@ -25,16 +27,16 @@ final class AdBlocker {
     ]
     private static let refreshInterval: TimeInterval = 24 * 3600
 
-    init(store: BrowserStore) {
+    public init(store: BrowserStore) {
         self.store = store
         filter = store.engine.resourceFilter
         cacheDirectory = store.dataDirectory.appendingPathComponent("Blocklists", isDirectory: true)
     }
 
-    var blockedRequests: Int { filter.blocked }
+    public var blockedRequests: Int { filter.blocked }
 
     /// Loads the cached lists, applies them, then refreshes stale ones.
-    func start() {
+    public func start() {
         Task {
             await compile(from: cachedLists())
             apply()
@@ -43,7 +45,7 @@ final class AdBlocker {
     }
 
     /// Re-applies the current settings (toggle, allowed sites).
-    func apply() {
+    public func apply() {
         guard let settings = store?.settings, settings.adBlockerEnabled, blocker.ruleCount > 0 else {
             filter.setDecision(nil)
             return
@@ -59,12 +61,12 @@ final class AdBlocker {
         }
     }
 
-    func isAllowed(site url: String) -> Bool {
+    public func isAllowed(site url: String) -> Bool {
         guard let host = URLDisplay.host(of: url)?.lowercased() else { return false }
         return store?.settings.adBlockerAllowedSites.contains(URLDisplay.registrableDomain(host)) ?? false
     }
 
-    func setAllowed(_ allowed: Bool, site url: String) {
+    public func setAllowed(_ allowed: Bool, site url: String) {
         guard let store, let host = URLDisplay.host(of: url)?.lowercased() else { return }
         let site = URLDisplay.registrableDomain(host)
         store.settings.adBlockerAllowedSites.removeAll { $0 == site }
@@ -87,7 +89,7 @@ final class AdBlocker {
     }
 
     /// Downloads the lists (from Arrow Cloud when configured).
-    func refresh() async {
+    public func refresh() async {
         var sources = Self.defaultLists.map { (id: $0.0, url: URL(string: $0.1)!) }
         if let server = store?.settings.cloudServerURL, !server.isEmpty,
            let manifestURL = URL(string: server)?.appendingPathComponent("v1/blocklists/manifest.json"),

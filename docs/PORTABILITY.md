@@ -62,29 +62,34 @@ At `e4de7af`, Arrow is about 19,600 lines of Swift:
 - Left for the Windows app: `URLInput` only treats `/…` and `~/…` as file
   paths, not `C:\…` or `\\server\share` (phase 5).
 
-### Phase 3: shared core
+### Phase 3: shared core (done)
 
-- Move the platform-independent part of `Model/` and `Services/` (browser
-  store, tabs, downloads, extensions, ad blocker, sync, Cast) into
-  `ArrowCore`, a second library of the ArrowKit package that imports neither
-  AppKit nor SwiftUI. Sharing the package keeps one build per CI job (the
-  Windows job spends most of its time building BoringSSL). Observation ships
-  with the Swift toolchain, so `@Observable` models can move as they are
-  (checked on Linux and Windows).
-  - Moved: `CommandBarModel`. Its field selection is a range of the text,
-    which the views convert to SwiftUI's `TextSelection`.
-- Put platform services behind protocols implemented by each app (see
+- `ArrowCore`, a second library of the ArrowKit package, holds the state and
+  services every platform shares: `BrowserStore`, `WebTab`, `WindowState`,
+  `CommandBarModel`, downloads, extensions, the ad blocker, Arrow Cloud (sync,
+  AI), Autofill and Cast. It imports neither AppKit nor SwiftUI.
+  - Sharing the package keeps one build per CI job: the Windows job spends
+    most of its time building BoringSSL.
+  - Observation ships with the Swift toolchain, so the `@Observable` models
+    moved as they were.
+- Engine boundary: the model talks to Chromium through `BrowserEngine`,
+  `BrowsingContext` and `EngineRuntime` (see
+  [Architecture](ARCHITECTURE.md#engine-boundary)), which the macOS app
+  implements with CEF.
+- Platform services: the model reaches the operating system through
+  `Platform`, implemented on macOS by `MacPlatform` (see
   [Platform services](#platform-services)).
-  - Done: `Platform` in `ArrowCore`, implemented on macOS by `MacPlatform`.
-- Draw the engine boundary: the model and the views talk to a browser
-  protocol, which `CEFBrowser` implements.
-  - Done: `BrowserEngine`, `BrowsingContext` and `EngineRuntime` in
-    `ArrowCore` (see [Architecture](ARCHITECTURE.md#engine-boundary)), with
-    engine-neutral page events, downloads, request filtering and Cast.
-- The macOS app builds on `ArrowCore`, with no change in behavior.
-
-Done when `ArrowCore` is tested on Linux and Windows in CI and the macOS app
-uses it.
+- What changed shape on the way:
+  - favicons and page snapshots are PNG data (`PageImage`), decoded by each
+    app;
+  - the command bar's selection is a range of the text, which the views
+    convert to SwiftUI's `TextSelection`;
+  - `URLSession.bytes(for:)` only exists on Apple platforms, so elsewhere
+    Arrow Cloud reads its sync events through a data task's delegate.
+- Tests run the model with a fake engine and platform on macOS, Linux and
+  Windows.
+- Still in the macOS app: the views, the AppKit services listed below and the
+  CEF bindings (phase 4).
 
 ### Phase 4: portable CEF bindings
 

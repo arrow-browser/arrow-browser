@@ -1,3 +1,4 @@
+import ArrowCore
 import ArrowKit
 import CEF
 import SwiftUI
@@ -69,7 +70,7 @@ struct SidebarTabRow: View {
         let isSelected = controller.displayedTabIDs.contains(tab.id) && controller.selectedSplit == nil
         HStack(spacing: 9.5) {
             ZStack(alignment: .bottomTrailing) {
-                FaviconView(url: live?.url ?? tab.url, image: live?.favicon, size: 16)
+                FaviconView(url: live?.url ?? tab.url, image: live?.favicon?.nsImage, size: 16)
                 if live?.isLoading == true {
                     ProgressView()
                         .controlSize(.mini)
@@ -259,7 +260,7 @@ struct SplitRow: View {
                         .frame(width: 1, height: 16)
                 }
                 HStack(spacing: 6) {
-                    FaviconView(url: tab.url, image: store.tabs[tab.id]?.favicon, size: 14)
+                    FaviconView(url: tab.url, image: store.tabs[tab.id]?.favicon?.nsImage, size: 14)
                     if split.tabs.count <= 2 {
                         Text(store.tabs[tab.id]?.displayTitle ?? tab.displayTitle)
                             .lineLimit(1)
@@ -450,7 +451,7 @@ private struct SiteControlsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                FaviconView(url: tab.url, image: tab.favicon, size: 20)
+                FaviconView(url: tab.url, image: tab.favicon?.nsImage, size: 20)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(URLDisplay.short(tab.url)).font(.headline)
                     Text(tab.url.hasPrefix("https://") ? "Connection is secure" : "Connection is not secure")
@@ -549,7 +550,7 @@ struct MediaControlsView: View {
         let visible = Set(controller.displayedTabIDs)
         if let tab = store.tabs.values.first(where: { $0.isPlayingMedia && !visible.contains($0.id) && store.state.tab($0.id) != nil }) {
             HStack(spacing: 10) {
-                FaviconView(url: tab.url, image: tab.favicon, size: 16)
+                FaviconView(url: tab.url, image: tab.favicon?.nsImage, size: 16)
                 Text(tab.displayTitle)
                     .font(.system(size: 12, weight: .medium))
                     .lineLimit(1)

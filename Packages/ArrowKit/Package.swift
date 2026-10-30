@@ -20,7 +20,10 @@ let package = Package(
         ]),
         // The app's state and services shared by every platform, on top of
         // ArrowKit (docs/PORTABILITY.md).
-        .target(name: "ArrowCore", dependencies: ["ArrowKit"]),
+        .target(name: "ArrowCore", dependencies: [
+            "ArrowKit",
+            .product(name: "Crypto", package: "swift-crypto"),
+        ]),
         .testTarget(name: "ArrowKitTests", dependencies: [
             "ArrowKit",
             .product(name: "Crypto", package: "swift-crypto"),

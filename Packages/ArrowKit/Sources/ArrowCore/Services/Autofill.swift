@@ -1,10 +1,9 @@
-import ArrowCore
 import ArrowKit
 import Foundation
 
 /// Banner offered over a page: save or fill a password or a card, translate.
-struct PageOffer: Identifiable {
-    enum Kind {
+public struct PageOffer: Identifiable {
+    public enum Kind {
         case savePassword(host: String, username: String, password: String)
         case saveCard(PaymentCard)
         case fillPassword(host: String, usernames: [String])
@@ -12,16 +11,16 @@ struct PageOffer: Identifiable {
         case translate(language: String)
     }
 
-    let id = UUID()
-    let kind: Kind
+    public let id = UUID()
+    public let kind: Kind
 }
 
 // MARK: - Page scripts
 
-enum AutofillScripts {
+public enum AutofillScripts {
     /// Reports submitted logins and cards (`__arrow_login__`, `__arrow_card__`)
     /// and focused card fields (`__arrow_card_focus__`).
-    static let observer = """
+    public static let observer = """
     (() => {
       if (window.__arrowAutofill || window !== window.top) return;
       window.__arrowAutofill = true;
@@ -72,9 +71,9 @@ enum AutofillScripts {
     """
 
     /// Whether the page shows a password field.
-    static let hasPasswordField = "!!document.querySelector('input[type=\"password\"]')"
+    public static let hasPasswordField = "!!document.querySelector('input[type=\"password\"]')"
 
-    static func fillLogin(username: String, password: String) -> String {
+    public static func fillLogin(username: String, password: String) -> String {
         let values = jsonString(["username": username, "password": password])
         return """
         ((login) => {
@@ -98,7 +97,7 @@ enum AutofillScripts {
         """
     }
 
-    static func fillCard(_ card: PaymentCard) -> String {
+    public static func fillCard(_ card: PaymentCard) -> String {
         let values = jsonString([
             "number": card.number, "name": card.holder, "month": String(format: "%02d", card.expiryMonth),
             "year": String(card.expiryYear), "expiry": card.expiry,
@@ -139,7 +138,7 @@ extension WebTab {
     private var pageHost: String? { URLDisplay.host(of: url) }
 
     /// After a page loads: the observer, fill offers and the translate prompt.
-    func runAutofill(_ browser: any BrowserEngine) {
+    public func runAutofill(_ browser: any BrowserEngine) {
         guard let store, url.hasPrefix("http") else { return }
         if case .fillPassword? = offer?.kind { offer = nil }
         if case .fillCard? = offer?.kind { offer = nil }
@@ -175,7 +174,7 @@ extension WebTab {
     }
 
     /// Messages of the observer script; true when handled.
-    func handleAutofillMessage(_ message: String) -> Bool {
+    public func handleAutofillMessage(_ message: String) -> Bool {
         guard let store else { return false }
         if message.hasPrefix("__arrow_login__:") {
             guard store.settings.offerToSavePasswords, !isIncognito, let host = pageHost,
@@ -211,13 +210,13 @@ extension WebTab {
         return false
     }
 
-    func fill(login: SavedLogin) {
+    public func fill(login: SavedLogin) {
         guard let password = store?.platform.credentials.password(host: login.host, username: login.username) else { return }
         engine?.executeJavaScript(AutofillScripts.fillLogin(username: login.username, password: password),
                                   scriptURL: "arrow://autofill")
     }
 
-    func fill(card: PaymentCard) {
+    public func fill(card: PaymentCard) {
         engine?.executeJavaScript(AutofillScripts.fillCard(card), scriptURL: "arrow://autofill")
     }
 
@@ -230,7 +229,7 @@ extension WebTab {
 
 extension WebTab {
     /// "Save" (password or card), "Translate".
-    func acceptOffer() {
+    public func acceptOffer() {
         guard let offer else { return }
         switch offer.kind {
         case let .savePassword(host, username, password):
@@ -249,7 +248,7 @@ extension WebTab {
     }
 
     /// "Never": this site (passwords) or this language (translation).
-    func neverOffer(forSite: Bool = true) {
+    public func neverOffer(forSite: Bool = true) {
         guard let offer, let store else { return }
         switch offer.kind {
         case let .savePassword(host, _, _):
@@ -266,7 +265,7 @@ extension WebTab {
         self.offer = nil
     }
 
-    var offerDescription: String {
+    public var offerDescription: String {
         switch offer?.kind {
         case let .savePassword(host, username, _)?: "savePassword \(host) \(username)"
         case let .saveCard(card)?: "saveCard \(card.label) \(card.expiry)"

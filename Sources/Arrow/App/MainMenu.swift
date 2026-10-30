@@ -1,4 +1,5 @@
 import AppKit
+import ArrowCore
 
 /// The menu bar, as Arc 1.170 shows it (File, Edit, View, Spaces, Tabs,
 /// Archive, Extensions, Window, Help) with the same keyboard shortcuts.
