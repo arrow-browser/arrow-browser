@@ -5,6 +5,7 @@ included:
   - Packages/ArrowCEF/Sources
   - Windows/Sources/ArrowWindows
   - Windows/Sources/WinUI/Application
+  - Windows/Tests
   - scripts
 
 excluded:

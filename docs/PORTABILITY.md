@@ -140,8 +140,8 @@ Done when a window with one CEF browser runs on Windows and Linux.
   ArrowCore's `BrowserStore` and `WindowState`, with a sidebar (navigation,
   address field, the space's tabs, New Tab, the space switcher) and one
   browser per tab, sandboxed, run by CI. `WindowsPlatform` implements
-  `Platform`; logins, cards and Arrow Cloud's secrets only last for the
-  session until it stores them in the Credential Manager.
+  `Platform`; logins, cards and Arrow Cloud's secrets are generic
+  credentials of the Credential Manager, which encrypts them with DPAPI.
   - The browser is a child window of the WinUI window's, kept over the area
     the XAML layout leaves it.
   - WinUI runs the message loop. CEF's external message pump runs its work

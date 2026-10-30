@@ -47,5 +47,7 @@ let package = Package(
             ],
             swiftSettings: cefHeaders
         ),
+        // Run next to the staged app (stage.ps1), which has libcef.dll.
+        .testTarget(name: "ArrowWindowsTests", dependencies: ["ArrowWindows"], swiftSettings: cefHeaders),
     ]
 )
