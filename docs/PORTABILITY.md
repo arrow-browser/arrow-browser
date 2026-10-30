@@ -35,7 +35,7 @@ At `e4de7af`, Arrow is about 19,600 lines of Swift:
 
 | Part | Lines | Portable |
 |---|---|---|
-| `Packages/ArrowKit`: model, persistence, parsers | ~3,000 | Yes since phase 1: builds and passes its tests on Linux. |
+| `Packages/ArrowKit`: model, persistence, parsers | ~3,000 | Yes: builds and passes its tests on Linux (phase 1) and Windows (phase 2). |
 | `Sources/Arrow/CEF`: CEF bindings | ~1,900 | Mostly. macOS-specific: hosting browsers in `NSView`s, the helper sandbox, the helper app bundles. |
 | `Sources/Arrow/Model`, `Services` | ~4,000 | Partly. 16 files import AppKit or SwiftUI, mixing logic with macOS code. |
 | `Sources/Arrow/Views`, `App`, `Theme` | ~10,400 | No. SwiftUI and AppKit, rebuilt per platform. |
@@ -51,12 +51,16 @@ At `e4de7af`, Arrow is about 19,600 lines of Swift:
 - CI runs `swift test` for ArrowKit on Linux
   (`.github/workflows/portability.yml`).
 
-### Phase 2: ArrowKit on Windows
+### Phase 2: ArrowKit on Windows (done)
 
-- Add a Windows job to the portability workflow and fix what Foundation does
-  differently there (paths, file APIs).
-
-Done when `swift test` passes on Windows in CI.
+- CI runs `swift test` for ArrowKit on Windows too, with the same Swift
+  release as on Linux, installed by
+  [gha-setup-swift](https://github.com/compnerd/gha-setup-swift) (the action
+  swift-winrt's own CI uses).
+- ArrowKit needed no change: Foundation and swift-crypto behave the same on
+  Windows for everything it does.
+- Left for the Windows app: `URLInput` only treats `/…` and `~/…` as file
+  paths, not `C:\…` or `\\server\share` (phase 5).
 
 ### Phase 3: shared core
 
@@ -64,7 +68,7 @@ Done when `swift test` passes on Windows in CI.
   store, tabs, downloads, extensions, ad blocker, sync, Cast) into a SwiftPM
   package, `ArrowCore`, that imports neither AppKit nor SwiftUI. Observation
   ships with the Swift toolchain, so `@Observable` models can move as they are
-  (checked on Linux; Windows in phase 2).
+  (checked on Linux and Windows).
 - Put platform services behind protocols implemented by each app (see
   [Platform services](#platform-services)).
 - Draw the engine boundary: the model and the views talk to a browser
@@ -96,6 +100,8 @@ Done when a window with one CEF browser runs on Windows and Linux.
   versions the subset of WinUI and the Windows App SDK it uses.
 - Rebuild the UI of the macOS app: sidebar, spaces, command bar, split view,
   Peek, Library, settings.
+- Command bar: open Windows file paths (`C:\…`, `\\server\share`) typed in
+  it, as `URLInput` does for `/…` and `~/…`.
 - Build with SwiftPM (CMake where SwiftPM falls short), ship an installer.
 - Updates reuse ArrowKit's appcast parser and EdDSA check; only the install
   step is Windows-specific.
@@ -127,7 +133,7 @@ What each app implements behind the protocols of phase 3:
 
 - ArrowKit, and later `ArrowCore`, import no Apple-only framework: no AppKit,
   SwiftUI, Security or CryptoKit. Cryptography goes through `Crypto` and
-  `CryptoExtras`. The Linux CI job catches regressions.
+  `CryptoExtras`. The Linux and Windows CI jobs catch regressions.
 - Anything platform-specific goes behind a protocol implemented by the app.
 - Moving code to the shared core does not change how the macOS app behaves.
 
