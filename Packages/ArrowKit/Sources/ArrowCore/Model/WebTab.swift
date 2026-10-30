@@ -1,11 +1,10 @@
-import AppKit
-import ArrowCore
 import ArrowKit
+import Foundation
 import Observation
 
 /// Window-side services a tab needs (opening tabs, popups, Peek…).
 @MainActor
-protocol TabHost: AnyObject {
+public protocol TabHost: AnyObject {
     func tab(_ tab: WebTab, openURL url: String, inBackground: Bool)
     func tab(_ tab: WebTab, createPopupFor url: String, features: PopupFeatures) -> (any BrowserEngine)?
     /// Return true when the navigation was diverted (Peek).
@@ -23,71 +22,71 @@ protocol TabHost: AnyObject {
 }
 
 /// Find-in-page state of a tab.
-struct FindState: Equatable {
-    var text = ""
-    var matchCount = 0
-    var activeMatch = 0
+public struct FindState: Equatable {
+    public var text = ""
+    public var matchCount = 0
+    public var activeMatch = 0
 }
 
 /// A site permission waiting for the user's decision.
-struct PendingPermission: Identifiable {
-    let id = UUID()
-    let request: PermissionRequest
-    let decide: @MainActor (Bool) -> Void
+public struct PendingPermission: Identifiable {
+    public let id = UUID()
+    public let request: PermissionRequest
+    public let decide: @MainActor (Bool) -> Void
 }
 
 /// Load failure shown instead of the page.
-struct LoadFailure: Equatable {
-    var url: String
-    var code: Int
-    var description: String
+public struct LoadFailure: Equatable {
+    public var url: String
+    public var code: Int
+    public var description: String
 }
 
 /// Runtime of one tab: its Chromium browser and observable page state.
 @MainActor
 @Observable
-final class WebTab: Identifiable {
-    let id: UUID
-    let profileID: UUID
-    let isIncognito: Bool
-    @ObservationIgnored weak var store: BrowserStore?
-    @ObservationIgnored weak var host: TabHost?
+public final class WebTab: Identifiable {
+    public let id: UUID
+    public let profileID: UUID
+    public let isIncognito: Bool
+    @ObservationIgnored public weak var store: BrowserStore?
+    @ObservationIgnored public weak var host: TabHost?
 
-    private(set) var engine: (any BrowserEngine)?
-    @ObservationIgnored var lastVisibleAt = Date()
+    public private(set) var engine: (any BrowserEngine)?
+    @ObservationIgnored public var lastVisibleAt = Date()
     @ObservationIgnored private var closeCompletions: [@MainActor () -> Void] = []
     @ObservationIgnored private var faviconTask: Task<Void, Never>?
 
-    var url: String
-    var title: String
-    var faviconURL: String?
-    var favicon: NSImage?
-    var isLoading = false
-    var progress = 0.0
-    var canGoBack = false
-    var canGoForward = false
-    var statusMessage: String?
-    var isFullscreen = false
-    var isMuted = false {
+    public var url: String
+    public var title: String
+    public var faviconURL: String?
+    public var favicon: PageImage?
+    public var isLoading = false
+    public var progress = 0.0
+    public var canGoBack = false
+    public var canGoForward = false
+    public var statusMessage: String?
+    public var isFullscreen = false
+    public var isMuted = false {
         didSet { engine?.isAudioMuted = isMuted }
     }
 
-    var isPlayingMedia = false
-    var isCameraActive = false
-    var isMicrophoneActive = false
-    var crash: TerminationStatus?
-    var loadFailure: LoadFailure?
-    var find: FindState?
-    var permissionRequest: PendingPermission?
+    public var isPlayingMedia = false
+    public var isCameraActive = false
+    public var isMicrophoneActive = false
+    public var crash: TerminationStatus?
+    public var loadFailure: LoadFailure?
+    public var find: FindState?
+    public var permissionRequest: PendingPermission?
     /// Save or fill a password or a card, or translate the page.
-    var offer: PageOffer?
-    var zoomLevel = 0.0
+    public var offer: PageOffer?
+    public var zoomLevel = 0.0
     /// Boost "Zap": clicked elements are hidden and saved to the site's boost.
-    var isZapping = false
+    public var isZapping = false
     /// Last rendering of the page, shown when hovering a favorite.
-    var snapshot: NSImage?
+    public var snapshot: PageImage?
 
-    init(model: Tab, profileID: UUID, store: BrowserStore?, isIncognito: Bool = false) {
+    public init(model: Tab, profileID: UUID, store: BrowserStore?, isIncognito: Bool = false) {
         id = model.id
         self.profileID = profileID
         self.store = store
@@ -99,7 +98,7 @@ final class WebTab: Identifiable {
         favicon = FaviconCache.shared.image(for: model.url)
     }
 
-    var displayTitle: String {
+    public var displayTitle: String {
         switch internalPage {
         case let .note(id): return store?.note(id)?.title ?? "Untitled"
         case let .easel(id): return store?.easel(id)?.title ?? "Untitled Easel"
@@ -110,8 +109,8 @@ final class WebTab: Identifiable {
         return URLDisplay.host(of: url) ?? url
     }
 
-    var internalPage: InternalPage? { InternalPage(url: url) }
-    var isEngineLoaded: Bool { engine != nil }
+    public var internalPage: InternalPage? { InternalPage(url: url) }
+    public var isEngineLoaded: Bool { engine != nil }
     /// `prefers-color-scheme` emulated in the current engine ("" for the system's).
     @ObservationIgnored private var appliedColorScheme: String?
 
@@ -119,7 +118,7 @@ final class WebTab: Identifiable {
 
     /// Creates the Chromium browser when the tab is first shown.
     @discardableResult
-    func ensureEngine(context: any BrowsingContext) -> (any BrowserEngine)? {
+    public func ensureEngine(context: any BrowsingContext) -> (any BrowserEngine)? {
         guard internalPage == nil else { return nil }
         if let engine { return engine }
         let engine = context.makeBrowser()
@@ -132,14 +131,14 @@ final class WebTab: Identifiable {
     }
 
     /// Adopts a browser created by Chromium for a popup.
-    func adopt(_ engine: any BrowserEngine) {
+    public func adopt(_ engine: any BrowserEngine) {
         engine.delegate = self
         self.engine = engine
         appliedColorScheme = nil
     }
 
     /// Destroys the browser, keeping the tab (reloaded when shown again).
-    func closeEngine(completion: (@MainActor () -> Void)? = nil) {
+    public func closeEngine(completion: (@MainActor () -> Void)? = nil) {
         guard let engine, !engine.isClosed else {
             self.engine = nil
             completion?()
@@ -151,7 +150,7 @@ final class WebTab: Identifiable {
 
     // MARK: - Navigation
 
-    func load(_ address: String) {
+    public func load(_ address: String) {
         url = address
         loadFailure = nil
         if let engine {
@@ -161,10 +160,10 @@ final class WebTab: Identifiable {
         }
     }
 
-    func goBack() { engine?.goBack() }
-    func goForward() { engine?.goForward() }
+    public func goBack() { engine?.goBack() }
+    public func goForward() { engine?.goForward() }
 
-    func reload(ignoringCache: Bool = false) {
+    public func reload(ignoringCache: Bool = false) {
         loadFailure = nil
         if crash != nil, let store {
             closeEngine()
@@ -176,11 +175,11 @@ final class WebTab: Identifiable {
         ignoringCache ? engine?.reloadIgnoringCache() : engine?.reload()
     }
 
-    func stopLoading() { engine?.stopLoading() }
+    public func stopLoading() { engine?.stopLoading() }
 
-    func zoomIn() { setZoom(zoomLevel + 0.5) }
-    func zoomOut() { setZoom(zoomLevel - 0.5) }
-    func resetZoom() { setZoom(0) }
+    public func zoomIn() { setZoom(zoomLevel + 0.5) }
+    public func zoomOut() { setZoom(zoomLevel - 0.5) }
+    public func resetZoom() { setZoom(0) }
 
     private func setZoom(_ level: Double) {
         zoomLevel = min(max(level, -4), 6)
@@ -189,7 +188,7 @@ final class WebTab: Identifiable {
 
     // MARK: - Find
 
-    func find(_ text: String, forward: Bool = true) {
+    public func find(_ text: String, forward: Bool = true) {
         let isNext = find?.text == text && !text.isEmpty
         find = FindState(text: text, matchCount: find?.matchCount ?? 0, activeMatch: find?.activeMatch ?? 0)
         guard !text.isEmpty else {
@@ -200,7 +199,7 @@ final class WebTab: Identifiable {
         engine?.find(text, forward: forward, findNext: isNext)
     }
 
-    func endFind() {
+    public func endFind() {
         engine?.stopFinding()
         find = nil
     }
@@ -210,7 +209,7 @@ final class WebTab: Identifiable {
     /// View ▸ Appearance: the `prefers-color-scheme` the page sees. Chromium's
     /// own color scheme does not reach browsers embedded in a view, so it is
     /// emulated per browser.
-    func applyContentAppearance() {
+    public func applyContentAppearance() {
         guard let store, let engine else { return }
         let value = switch store.settings.contentAppearance {
         case .automatic: ""
@@ -226,7 +225,7 @@ final class WebTab: Identifiable {
         }
     }
 
-    func applyBoosts() {
+    public func applyBoosts() {
         guard let store, store.settings.boostsEnabled, let engine else { return }
         for boost in store.boosts(for: url) {
             engine.executeJavaScript(boost.injectionScript, scriptURL: "arrow://boost")
@@ -234,7 +233,7 @@ final class WebTab: Identifiable {
     }
 
     /// Enters Picture in Picture for the playing video (automatic PiP).
-    func enterPictureInPicture() {
+    public func enterPictureInPicture() {
         guard let engine, isPlayingMedia else { return }
         Task {
             _ = await engine.devToolsMethod("Runtime.evaluate", params: [
@@ -245,7 +244,7 @@ final class WebTab: Identifiable {
         }
     }
 
-    func exitPictureInPicture() {
+    public func exitPictureInPicture() {
         engine?.executeJavaScript("document.pictureInPictureElement && document.exitPictureInPicture()")
     }
 
@@ -275,13 +274,13 @@ final class WebTab: Identifiable {
     """
 
     /// Starts Zap: hovered elements are outlined, a click hides them.
-    func startZapping() {
+    public func startZapping() {
         guard let engine else { return }
         isZapping = true
         engine.executeJavaScript(Self.zapScript, scriptURL: "arrow://zap")
     }
 
-    func stopZapping() {
+    public func stopZapping() {
         isZapping = false
         engine?.executeJavaScript("window.__arrowZapStop && window.__arrowZapStop()")
     }
@@ -335,7 +334,7 @@ final class WebTab: Identifiable {
     })();
     """
 
-    func playPauseMedia() {
+    public func playPauseMedia() {
         engine?.executeJavaScript("""
         (() => { const m = [...document.querySelectorAll('video, audio')].find(m => !m.paused) \
         || document.querySelector('video, audio'); if (m) { m.paused ? m.play() : m.pause(); } })();
@@ -349,8 +348,8 @@ final class WebTab: Identifiable {
         faviconTask?.cancel()
         let pageURL = url
         faviconTask = Task { [weak self] in
-            guard let engine = self?.engine, let data = await engine.downloadImage(url: preferred),
-                  let image = NSImage(data: data) else { return }
+            guard let engine = self?.engine, let data = await engine.downloadImage(url: preferred) else { return }
+            let image = PageImage(data: data)
             guard let self, !Task.isCancelled else { return }
             favicon = image
             FaviconCache.shared.store(image, for: pageURL)
@@ -383,23 +382,23 @@ extension WebTab: BrowserEngineDelegate {
         static let boost = 26518
     }
 
-    func browser(_ browser: any BrowserEngine, didChangeAddress url: String) {
+    public func browser(_ browser: any BrowserEngine, didChangeAddress url: String) {
         self.url = url
         loadFailure = nil
         store?.syncTabModel(self)
     }
 
-    func browser(_ browser: any BrowserEngine, didChangeTitle title: String) {
+    public func browser(_ browser: any BrowserEngine, didChangeTitle title: String) {
         self.title = title
         store?.updateHistoryTitle(url: url, title: title, incognito: isIncognito)
         store?.syncTabModel(self)
     }
 
-    func browser(_ browser: any BrowserEngine, didChangeFaviconURLs urls: [String]) {
+    public func browser(_ browser: any BrowserEngine, didChangeFaviconURLs urls: [String]) {
         loadFavicon(from: urls)
     }
 
-    func browser(_ browser: any BrowserEngine, didChangeLoadingState isLoading: Bool, canGoBack: Bool, canGoForward: Bool) {
+    public func browser(_ browser: any BrowserEngine, didChangeLoadingState isLoading: Bool, canGoBack: Bool, canGoForward: Bool) {
         if isLoading { applyContentAppearance() }
         self.isLoading = isLoading
         self.canGoBack = canGoBack
@@ -407,11 +406,11 @@ extension WebTab: BrowserEngineDelegate {
         if isLoading { progress = max(progress, 0.1) }
     }
 
-    func browser(_ browser: any BrowserEngine, didChangeProgress progress: Double) {
+    public func browser(_ browser: any BrowserEngine, didChangeProgress progress: Double) {
         self.progress = progress
     }
 
-    func browser(_ browser: any BrowserEngine, didFinishLoad url: String, httpStatusCode: Int) {
+    public func browser(_ browser: any BrowserEngine, didFinishLoad url: String, httpStatusCode: Int) {
         store?.recordVisit(url: url, title: title, incognito: isIncognito)
         applyBoosts()
         applyPageFeatures(browser)
@@ -423,36 +422,36 @@ extension WebTab: BrowserEngineDelegate {
 
     /// Captures the page for hover previews (only while it is displayed:
     /// Chromium does not render hidden pages).
-    func refreshSnapshot(after delay: Duration = .zero) {
+    public func refreshSnapshot(after delay: Duration = .zero) {
         Task { [weak self] in
             try? await Task.sleep(for: delay)
             guard let self, let engine, host?.isDisplaying(self) == true,
-                  let data = await engine.captureScreenshot(), let image = NSImage(data: data) else { return }
-            snapshot = image
+                  let data = await engine.captureScreenshot() else { return }
+            snapshot = PageImage(data: data)
         }
     }
 
-    func browser(_ browser: any BrowserEngine, didFailLoad url: String, errorCode: Int, errorText: String) {
+    public func browser(_ browser: any BrowserEngine, didFailLoad url: String, errorCode: Int, errorText: String) {
         // ERR_ABORTED (-3) happens on user-cancelled or replaced navigations.
         guard errorCode != -3 else { return }
         loadFailure = LoadFailure(url: url, code: errorCode, description: errorText)
     }
 
-    func browser(_ browser: any BrowserEngine, didChangeStatusMessage message: String?) {
+    public func browser(_ browser: any BrowserEngine, didChangeStatusMessage message: String?) {
         statusMessage = message
     }
 
-    func browser(_ browser: any BrowserEngine, didChangeFullscreen fullscreen: Bool) {
+    public func browser(_ browser: any BrowserEngine, didChangeFullscreen fullscreen: Bool) {
         isFullscreen = fullscreen
         host?.tab(self, didChangeFullscreen: fullscreen)
     }
 
-    func browser(_ browser: any BrowserEngine, didChangeMediaAccess camera: Bool, microphone: Bool) {
+    public func browser(_ browser: any BrowserEngine, didChangeMediaAccess camera: Bool, microphone: Bool) {
         isCameraActive = camera
         isMicrophoneActive = microphone
     }
 
-    func browser(_ browser: any BrowserEngine, consoleMessage message: String) -> Bool {
+    public func browser(_ browser: any BrowserEngine, consoleMessage message: String) -> Bool {
         if handleAutofillMessage(message) { return true }
         if message.hasPrefix("__arrow_quote__:") {
             copyQuote(String(message.dropFirst("__arrow_quote__:".count)))
@@ -474,12 +473,12 @@ extension WebTab: BrowserEngineDelegate {
         return false
     }
 
-    func browser(_ browser: any BrowserEngine, createPopupFor url: String, disposition: WindowOpenDisposition,
+    public func browser(_ browser: any BrowserEngine, createPopupFor url: String, disposition: WindowOpenDisposition,
                  userGesture: Bool, features: PopupFeatures) -> (any BrowserEngine)? {
         host?.tab(self, createPopupFor: url, features: features)
     }
 
-    func browser(_ browser: any BrowserEngine, openURL url: String, disposition: WindowOpenDisposition) -> Bool {
+    public func browser(_ browser: any BrowserEngine, openURL url: String, disposition: WindowOpenDisposition) -> Bool {
         // Preferences ▸ Links: ⌥⌘-click opens Little Arrow, Shift-click opens Peek.
         let modifiers = store?.platform.heldModifiers ?? []
         if let settings = store?.settings, disposition != .currentTab, disposition != .other {
@@ -504,18 +503,18 @@ extension WebTab: BrowserEngineDelegate {
         }
     }
 
-    func browser(_ browser: any BrowserEngine, shouldNavigateTo url: String, userGesture: Bool, isRedirect: Bool) -> Bool {
+    public func browser(_ browser: any BrowserEngine, shouldNavigateTo url: String, userGesture: Bool, isRedirect: Bool) -> Bool {
         guard userGesture, !isRedirect else { return true }
         return !(host?.tab(self, shouldDivertNavigationTo: url) ?? false)
     }
 
-    func browser(_ browser: any BrowserEngine, didFindMatches count: Int, activeMatch: Int, finalUpdate: Bool) {
+    public func browser(_ browser: any BrowserEngine, didFindMatches count: Int, activeMatch: Int, finalUpdate: Bool) {
         guard find != nil else { return }
         find?.matchCount = count
         find?.activeMatch = activeMatch
     }
 
-    func browser(_ browser: any BrowserEngine, contextMenuItemsFor params: ContextMenuParams) -> [ContextMenuItem] {
+    public func browser(_ browser: any BrowserEngine, contextMenuItemsFor params: ContextMenuParams) -> [ContextMenuItem] {
         if params.isEditable { return [] }
         var items: [ContextMenuItem] = []
         if params.hasLink {
@@ -564,7 +563,7 @@ extension WebTab: BrowserEngineDelegate {
         return items
     }
 
-    func browser(_ browser: any BrowserEngine, didSelectContextMenuItem id: Int, params: ContextMenuParams) {
+    public func browser(_ browser: any BrowserEngine, didSelectContextMenuItem id: Int, params: ContextMenuParams) {
         let platform = store?.platform
         switch id {
         case MenuID.openLinkInNewTab: host?.tab(self, openURL: params.linkURL, inBackground: true)
@@ -592,7 +591,7 @@ extension WebTab: BrowserEngineDelegate {
         }
     }
 
-    func browser(_ browser: any BrowserEngine, requestsPermission request: PermissionRequest,
+    public func browser(_ browser: any BrowserEngine, requestsPermission request: PermissionRequest,
                  decision: @escaping @MainActor (Bool) -> Void) -> Bool {
         permissionRequest?.decide(false)
         permissionRequest = PendingPermission(request: request) { [weak self] allowed in
@@ -602,17 +601,17 @@ extension WebTab: BrowserEngineDelegate {
         return true
     }
 
-    func browser(_ browser: any BrowserEngine, rendererDidTerminate status: TerminationStatus) {
+    public func browser(_ browser: any BrowserEngine, rendererDidTerminate status: TerminationStatus) {
         crash = status
         isLoading = false
         isPlayingMedia = false
     }
 
-    func browserDidGainFocus(_ browser: any BrowserEngine) {
+    public func browserDidGainFocus(_ browser: any BrowserEngine) {
         host?.tabDidGainFocus(self)
     }
 
-    func browserWillClose(_ browser: any BrowserEngine) {
+    public func browserWillClose(_ browser: any BrowserEngine) {
         // window.close() from the page: close the tab unless we initiated it.
         // Deferred so the tab is not torn down inside Chromium's callback.
         if !browser.isClosing, engine === browser {
@@ -623,7 +622,7 @@ extension WebTab: BrowserEngineDelegate {
         }
     }
 
-    func browserDidClose(_ browser: any BrowserEngine) {
+    public func browserDidClose(_ browser: any BrowserEngine) {
         if engine === browser { engine = nil }
         isLoading = false
         isPlayingMedia = false
@@ -637,7 +636,7 @@ extension WebTab: BrowserEngineDelegate {
 
 extension WebTab {
     /// Theme variables and the quote button, as the preferences allow.
-    func applyPageFeatures(_ browser: any BrowserEngine) {
+    public func applyPageFeatures(_ browser: any BrowserEngine) {
         guard let store, url.hasPrefix("http") else { return }
         if store.settings.shareThemeWithWebsites, !isIncognito, let script = themeScript(store) {
             browser.executeJavaScript(script, scriptURL: "arrow://theme")

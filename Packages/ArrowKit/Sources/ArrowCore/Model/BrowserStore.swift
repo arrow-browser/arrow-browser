@@ -1,15 +1,14 @@
-import AppKit
-import ArrowCore
 import ArrowKit
+import Foundation
 import Observation
 
 /// Application-wide model: the persisted sidebar state, settings, history,
 /// boosts, notes and the live tabs (Chromium browsers).
 @MainActor
 @Observable
-final class BrowserStore {
-    private(set) var state: BrowserState
-    var settings: ArrowSettings {
+public final class BrowserStore {
+    public private(set) var state: BrowserState
+    public var settings: ArrowSettings {
         didSet {
             guard settings != oldValue else { return }
             scheduleSave(.settings)
@@ -26,16 +25,16 @@ final class BrowserStore {
         }
     }
 
-    private(set) var history: History
-    private(set) var boosts: [Boost]
-    private(set) var notes: [Note]
-    private(set) var easels: [Easel]
-    let downloads: DownloadManager
+    public private(set) var history: History
+    public private(set) var boosts: [Boost]
+    public private(set) var notes: [Note]
+    public private(set) var easels: [Easel]
+    public let downloads: DownloadManager
     /// Built-in ad and tracker blocker (normal stores only).
-    @ObservationIgnored private(set) lazy var adBlocker = AdBlocker(store: self)
+    @ObservationIgnored public private(set) lazy var adBlocker = AdBlocker(store: self)
     /// Arrow Cloud client (accounts, sync, AI, sharing).
     @ObservationIgnored private var cloudStorage: ArrowCloud?
-    var cloud: ArrowCloud {
+    public var cloud: ArrowCloud {
         if let cloudStorage { return cloudStorage }
         let cloud = ArrowCloud(store: self)
         cloudStorage = cloud
@@ -43,27 +42,27 @@ final class BrowserStore {
     }
 
     /// Live tabs by tab ID.
-    @ObservationIgnored private(set) var tabs: [UUID: WebTab] = [:]
+    @ObservationIgnored public private(set) var tabs: [UUID: WebTab] = [:]
     @ObservationIgnored private var requestContexts: [UUID: any BrowsingContext] = [:]
     @ObservationIgnored private var pendingSaves: Set<StoreFile> = []
     @ObservationIgnored private var saveTask: Task<Void, Never>?
     @ObservationIgnored private var maintenanceTimer: Timer?
 
     /// The rendering engine (Chromium).
-    let engine: any EngineRuntime
+    public let engine: any EngineRuntime
     /// The services of the operating system (Keychain, clipboard…).
-    let platform: any Platform
+    public let platform: any Platform
     /// Directory of Arrow's own data (Chromium uses the parent directory).
-    let dataDirectory: URL
+    public let dataDirectory: URL
     /// Incognito stores keep everything in memory and use an off-the-record
     /// Chromium context.
-    let isIncognito: Bool
+    public let isIncognito: Bool
 
     private enum StoreFile: Hashable {
         case sidebar, settings, history, boosts, notes, easels
     }
 
-    init(engine: any EngineRuntime, platform: any Platform, dataDirectory: URL? = nil) {
+    public init(engine: any EngineRuntime, platform: any Platform, dataDirectory: URL? = nil) {
         self.engine = engine
         self.platform = platform
         let dataDirectory = dataDirectory ?? engine.rootCachePath.appendingPathComponent("State", isDirectory: true)
@@ -87,7 +86,7 @@ final class BrowserStore {
     }
 
     /// Ephemeral store of an incognito window.
-    init(incognitoWith settings: ArrowSettings, downloads: DownloadManager, engine: any EngineRuntime,
+    public init(incognitoWith settings: ArrowSettings, downloads: DownloadManager, engine: any EngineRuntime,
          platform: any Platform) {
         self.engine = engine
         self.platform = platform
@@ -118,7 +117,7 @@ final class BrowserStore {
     }
 
     /// Writes pending changes immediately (also called before quitting).
-    func saveNow() {
+    public func saveNow() {
         let files = pendingSaves
         pendingSaves.removeAll()
         for file in files {
@@ -144,14 +143,14 @@ final class BrowserStore {
     }
 
     /// Mutates the sidebar state and persists it.
-    func update(_ transform: (inout BrowserState) -> Void) {
+    public func update(_ transform: (inout BrowserState) -> Void) {
         transform(&state)
         scheduleSave(.sidebar)
         if !isIncognito, settings.syncEnabled { cloud.scheduleSync() }
     }
 
     /// Merges spaces and favorites received from another device.
-    func applyRemote(spaces remote: [UUID: Space], deleted: Set<UUID>, favorites: [String: [Tab]]?, order: [UUID]?,
+    public func applyRemote(spaces remote: [UUID: Space], deleted: Set<UUID>, favorites: [String: [Tab]]?, order: [UUID]?,
                      profiles: [Profile]?) {
         let before = Set(state.spaces.flatMap(\.allTabs).map(\.id))
         if let profiles {
@@ -180,7 +179,7 @@ final class BrowserStore {
     // MARK: - Profiles
 
     /// Chromium request context of a profile (cookies, storage…).
-    func requestContext(for profileID: UUID) -> any BrowsingContext {
+    public func requestContext(for profileID: UUID) -> any BrowsingContext {
         if let context = requestContexts[profileID] { return context }
         let context = if isIncognito {
             engine.incognitoContext()
@@ -199,7 +198,7 @@ final class BrowserStore {
 
     /// Preferences ▸ Profiles ▸ Clear Browsing Data. Chromium removes cookies
     /// and cached files of every profile for all time.
-    func clearBrowsingData(since date: Date?, history: Bool, cookies: Bool, cache: Bool) {
+    public func clearBrowsingData(since date: Date?, history: Bool, cookies: Bool, cache: Bool) {
         if history { clearHistory(since: date) }
         let contexts = state.profiles.map { requestContext(for: $0.id) }
         for context in contexts {
@@ -215,12 +214,12 @@ final class BrowserStore {
     }
 
     /// Dated copies of the sidebar, newest first (Help ▸ Restore Data).
-    func sidebarBackups() -> [URL] {
+    public func sidebarBackups() -> [URL] {
         sidebarStore.backups().reversed()
     }
 
     /// Replaces the sidebar with a backup; the current one becomes a backup too.
-    func restoreSidebar(from backup: URL) -> Bool {
+    public func restoreSidebar(from backup: URL) -> Bool {
         guard let restored = sidebarStore.value(inBackup: backup) else { return false }
         try? sidebarStore.save(state, backup: true)
         update { $0 = restored }
@@ -230,7 +229,7 @@ final class BrowserStore {
     // MARK: - Live tabs
 
     /// Live runtime of tab `id`, created on demand from the model.
-    func webTab(_ id: UUID) -> WebTab? {
+    public func webTab(_ id: UUID) -> WebTab? {
         if let tab = tabs[id] { return tab }
         guard let model = state.tab(id) else { return nil }
         let profileID = state.spaceID(containing: id).flatMap { state.space($0)?.profileID } ?? state.defaultProfile.id
@@ -240,17 +239,17 @@ final class BrowserStore {
     }
 
     /// Registers a tab created by a popup (its engine already exists).
-    func register(_ tab: WebTab) {
+    public func register(_ tab: WebTab) {
         tabs[tab.id] = tab
     }
 
-    func discardRuntime(_ id: UUID) {
+    public func discardRuntime(_ id: UUID) {
         guard let tab = tabs.removeValue(forKey: id) else { return }
         tab.closeEngine()
     }
 
     /// Updates the persisted model of a tab from its runtime state.
-    func syncTabModel(_ tab: WebTab) {
+    public func syncTabModel(_ tab: WebTab) {
         guard state.tab(tab.id) != nil else { return }
         update { state in
             state.updateTab(tab.id) { model in
@@ -262,13 +261,13 @@ final class BrowserStore {
         }
     }
 
-    func markActive(_ id: UUID) {
+    public func markActive(_ id: UUID) {
         update { $0.updateTab(id) { $0.lastActiveAt = Date() } }
     }
 
     /// Opens a new today tab in `spaceID` and returns its runtime.
     @discardableResult
-    func openTab(url: String, in spaceID: UUID, select: Bool = true) -> WebTab? {
+    public func openTab(url: String, in spaceID: UUID, select: Bool = true) -> WebTab? {
         var created: Tab?
         update { created = $0.openTab(url: url, in: spaceID) }
         guard let created else { return nil }
@@ -276,7 +275,7 @@ final class BrowserStore {
     }
 
     /// Closes (archives) a today tab or resets a pinned tab/favorite.
-    func close(_ id: UUID) {
+    public func close(_ id: UUID) {
         guard let location = state.location(of: id) else {
             discardRuntime(id)
             return
@@ -296,7 +295,7 @@ final class BrowserStore {
     }
 
     /// Permanently removes a node (pinned tab, folder, favorite).
-    func delete(_ id: UUID) {
+    public func delete(_ id: UUID) {
         let tabIDs = state.tab(id).map { [$0.id] } ?? []
         update { $0.delete(id) }
         for tabID in tabIDs { discardRuntime(tabID) }
@@ -304,33 +303,33 @@ final class BrowserStore {
 
     // MARK: - History, boosts, notes
 
-    func recordVisit(url: String, title: String, incognito: Bool) {
+    public func recordVisit(url: String, title: String, incognito: Bool) {
         guard !incognito else { return }
         history.recordVisit(url: url, title: title)
         scheduleSave(.history)
     }
 
-    func updateHistoryTitle(url: String, title: String, incognito: Bool) {
+    public func updateHistoryTitle(url: String, title: String, incognito: Bool) {
         guard !incognito else { return }
         history.updateTitle(url: url, title: title)
         scheduleSave(.history)
     }
 
-    func clearHistoryEntry(_ url: String) {
+    public func clearHistoryEntry(_ url: String) {
         history.remove(url: url)
         scheduleSave(.history)
     }
 
-    func clearHistory(since date: Date? = nil) {
+    public func clearHistory(since date: Date? = nil) {
         history.clear(since: date)
         scheduleSave(.history)
     }
 
-    func boosts(for url: String) -> [Boost] {
+    public func boosts(for url: String) -> [Boost] {
         boosts.filter { $0.applies(to: url) }
     }
 
-    func saveBoost(_ boost: Boost) {
+    public func saveBoost(_ boost: Boost) {
         if let index = boosts.firstIndex(where: { $0.id == boost.id }) {
             boosts[index] = boost
         } else {
@@ -343,7 +342,7 @@ final class BrowserStore {
     }
 
     /// Adds a zapped selector to the site's boost (created if needed).
-    func zap(_ selector: String, on url: String) {
+    public func zap(_ selector: String, on url: String) {
         guard let host = URLDisplay.host(of: url) else { return }
         var boost = boosts.first { $0.applies(to: url) } ?? Boost(name: "\(host) Boost", domain: host)
         guard !boost.zappedSelectors.contains(selector) else { return }
@@ -356,14 +355,14 @@ final class BrowserStore {
         scheduleSave(.boosts)
     }
 
-    func deleteBoost(_ id: UUID) {
+    public func deleteBoost(_ id: UUID) {
         boosts.removeAll { $0.id == id }
         scheduleSave(.boosts)
     }
 
     /// Sidebar title of a tab that may not be loaded (notes and easels use
     /// their own names).
-    func title(of tab: Tab) -> String {
+    public func title(of tab: Tab) -> String {
         switch InternalPage(url: tab.url) {
         case let .note(id): note(id)?.title ?? "Untitled"
         case let .easel(id): easel(id)?.title ?? "Untitled Easel"
@@ -372,9 +371,9 @@ final class BrowserStore {
         }
     }
 
-    func note(_ id: UUID) -> Note? { notes.first { $0.id == id } }
+    public func note(_ id: UUID) -> Note? { notes.first { $0.id == id } }
 
-    func saveNote(_ note: Note) {
+    public func saveNote(_ note: Note) {
         if let index = notes.firstIndex(where: { $0.id == note.id }) {
             notes[index] = note
         } else {
@@ -383,14 +382,14 @@ final class BrowserStore {
         scheduleSave(.notes)
     }
 
-    func deleteNote(_ id: UUID) {
+    public func deleteNote(_ id: UUID) {
         notes.removeAll { $0.id == id }
         scheduleSave(.notes)
     }
 
-    func easel(_ id: UUID) -> Easel? { easels.first { $0.id == id } }
+    public func easel(_ id: UUID) -> Easel? { easels.first { $0.id == id } }
 
-    func saveEasel(_ easel: Easel) {
+    public func saveEasel(_ easel: Easel) {
         if let index = easels.firstIndex(where: { $0.id == easel.id }) {
             easels[index] = easel
         } else {
@@ -399,13 +398,13 @@ final class BrowserStore {
         scheduleSave(.easels)
     }
 
-    func deleteEasel(_ id: UUID) {
+    public func deleteEasel(_ id: UUID) {
         easels.removeAll { $0.id == id }
         scheduleSave(.easels)
     }
 
     /// Preferences ▸ Advanced ▸ Play Arrow sound effects.
-    func playSound(_ effect: SoundEffect) {
+    public func playSound(_ effect: SoundEffect) {
         guard settings.soundEffects else { return }
         platform.play(effect)
     }
@@ -421,9 +420,9 @@ final class BrowserStore {
     }
 
     /// IDs of the tabs currently displayed in a window.
-    var visibleTabIDs: () -> Set<UUID> = { [] }
+    public var visibleTabIDs: () -> Set<UUID> = { [] }
 
-    func performMaintenance(now: Date = Date()) {
+    public func performMaintenance(now: Date = Date()) {
         let visible = visibleTabIDs()
         var archived: [Tab] = []
         update { archived = $0.archiveStaleTabs(olderThan: settings.archiveInterval.seconds, now: now, excluding: visible) }
@@ -438,7 +437,7 @@ final class BrowserStore {
     }
 
     /// Closes every browser; `completion` runs once all are destroyed.
-    func closeAllBrowsers(completion: @escaping @MainActor () -> Void) {
+    public func closeAllBrowsers(completion: @escaping @MainActor () -> Void) {
         saveNow()
         let live = tabs.values.filter(\.isEngineLoaded)
         guard !live.isEmpty else {

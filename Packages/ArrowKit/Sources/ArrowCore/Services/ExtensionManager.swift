@@ -1,7 +1,8 @@
-import AppKit
-import ArrowCore
 import ArrowKit
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import Observation
 
 /// Chrome extensions installed from the Chrome Web Store.
@@ -12,24 +13,24 @@ import Observation
 /// extensions when Chromium starts (`--load-extension`).
 @MainActor
 @Observable
-final class ExtensionManager {
-    struct Extension: Codable, Identifiable, Hashable {
-        var id: String
-        var name: String
-        var version: String
-        var isEnabled: Bool
+public final class ExtensionManager {
+    public struct Extension: Codable, Identifiable, Hashable {
+        public var id: String
+        public var name: String
+        public var version: String
+        public var isEnabled: Bool
         /// Relative path of the action popup (`action.default_popup`).
-        var popup: String?
-        var options: String?
-        var icon: String?
-        var directory: String
+        public var popup: String?
+        public var options: String?
+        public var icon: String?
+        public var directory: String
     }
 
-    enum Failure: LocalizedError {
+    public enum Failure: LocalizedError {
         case invalidReference
         case download(Int)
 
-        var errorDescription: String? {
+        public var errorDescription: String? {
             switch self {
             case .invalidReference: "Paste a Chrome Web Store link or a 32-letter extension ID."
             case let .download(status): "The Chrome Web Store returned an error (\(status))."
@@ -37,12 +38,12 @@ final class ExtensionManager {
         }
     }
 
-    static let shared = ExtensionManager()
+    public static let shared = ExtensionManager()
 
-    private(set) var extensions: [Extension]
+    public private(set) var extensions: [Extension]
     /// Changes apply after relaunching Chromium.
-    private(set) var needsRelaunch = false
-    private(set) var installing: Set<String> = []
+    public private(set) var needsRelaunch = false
+    public private(set) var installing: Set<String> = []
 
     private let directory: URL
 
@@ -66,7 +67,7 @@ final class ExtensionManager {
     }
 
     /// Value of Chromium's `--load-extension` switch (read before startup).
-    nonisolated static func loadExtensionArgument() -> String? {
+    public nonisolated static func loadExtensionArgument() -> String? {
         let paths = loadList()
             .filter(\.isEnabled)
             .map { extensionsDirectory.appendingPathComponent($0.directory).path }
@@ -85,7 +86,7 @@ final class ExtensionManager {
     // MARK: - Install
 
     /// Extension ID from a Web Store URL (…/detail/<slug>/<id>) or a bare ID.
-    nonisolated static func extensionID(from reference: String) -> String? {
+    public nonisolated static func extensionID(from reference: String) -> String? {
         let candidates = reference.split(whereSeparator: { "/?#&= ".contains($0) }).map(String.init)
         return candidates.last { candidate in
             candidate.count == 32 && candidate.allSatisfy { ("a"..."p").contains($0) }
@@ -94,7 +95,7 @@ final class ExtensionManager {
 
     /// Installs an extension for `store`'s engine and platform.
     @discardableResult
-    func install(_ reference: String, using store: BrowserStore) async throws -> Extension {
+    public func install(_ reference: String, using store: BrowserStore) async throws -> Extension {
         guard let id = Self.extensionID(from: reference) else { throw Failure.invalidReference }
         installing.insert(id)
         defer { installing.remove(id) }
@@ -177,41 +178,29 @@ final class ExtensionManager {
 
     // MARK: - Management
 
-    func setEnabled(_ id: String, _ enabled: Bool) {
+    public func setEnabled(_ id: String, _ enabled: Bool) {
         guard let index = extensions.firstIndex(where: { $0.id == id }) else { return }
         extensions[index].isEnabled = enabled
         saveList()
     }
 
-    func remove(_ id: String) {
+    public func remove(_ id: String) {
         guard let installed = extensions.first(where: { $0.id == id }) else { return }
         extensions.removeAll { $0.id == id }
         try? FileManager.default.removeItem(at: directory.appendingPathComponent(installed.directory))
         saveList()
     }
 
-    func iconImage(for installed: Extension) -> NSImage? {
-        guard let icon = installed.icon else { return nil }
-        return NSImage(contentsOf: directory.appendingPathComponent(installed.directory).appendingPathComponent(icon))
+    /// File of the extension's largest icon.
+    public func iconURL(for installed: Extension) -> URL? {
+        installed.icon.map { directory.appendingPathComponent(installed.directory).appendingPathComponent($0) }
     }
 
-    func popupURL(for installed: Extension) -> String? {
+    public func popupURL(for installed: Extension) -> String? {
         installed.popup.map { "chrome-extension://\(installed.id)/\($0)" }
     }
 
-    func optionsURL(for installed: Extension) -> String? {
+    public func optionsURL(for installed: Extension) -> String? {
         installed.options.map { "chrome-extension://\(installed.id)/\($0)" }
-    }
-
-    /// Restarts Arrow so Chromium loads the new extension set.
-    func relaunch() {
-        let bundle = Bundle.main.bundleURL.path
-        let pid = ProcessInfo.processInfo.processIdentifier
-        let script = "while kill -0 \(pid) 2>/dev/null; do sleep 0.2; done; /usr/bin/open \"\(bundle)\""
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/sh")
-        process.arguments = ["-c", script]
-        try? process.run()
-        NSApp.terminate(nil)
     }
 }

@@ -1,4 +1,3 @@
-import ArrowCore
 import ArrowKit
 import Foundation
 import Observation
@@ -9,23 +8,23 @@ import Observation
 /// the page: the device fetches it itself.
 @MainActor
 @Observable
-final class CastController {
-    static let shared = CastController()
+public final class CastController {
+    public static let shared = CastController()
 
-    enum Status: Equatable {
+    public enum Status: Equatable {
         case idle
         case connecting(sinkID: String)
         case casting(sinkID: String)
     }
 
-    private(set) var sinks: [MediaSink] = []
-    private(set) var status: Status = .idle
+    public private(set) var sinks: [MediaSink] = []
+    public private(set) var status: Status = .idle
     /// "PLAYING", "PAUSED", "BUFFERING" or "IDLE", as the device reports it.
-    private(set) var playerState: String?
-    private(set) var media: CastMedia?
-    var errorMessage: String?
+    public private(set) var playerState: String?
+    public private(set) var media: CastMedia?
+    public var errorMessage: String?
     /// Device lists reported by Chromium since launch (Debug diagnostics).
-    @ObservationIgnored private(set) var sinkReports = 0
+    @ObservationIgnored public private(set) var sinkReports = 0
 
     @ObservationIgnored private var router: (any MediaRouter)?
     @ObservationIgnored private var routerContext: (any BrowsingContext)?
@@ -40,13 +39,13 @@ final class CastController {
 
     private init() {}
 
-    var castingSinkID: String? {
+    public var castingSinkID: String? {
         if case let .casting(id) = status { return id }
         return nil
     }
 
     /// Looks for devices while the Cast popover is open (or while casting).
-    func startDiscovery(context: any BrowsingContext) {
+    public func startDiscovery(context: any BrowsingContext) {
         if router == nil || routerContext !== context, route == nil {
             router?.stopDiscovery()
             router = context.makeMediaRouter()
@@ -63,16 +62,16 @@ final class CastController {
         router?.startDiscovery()
     }
 
-    var isDiscovering: Bool { router?.isDiscovering ?? false }
+    public var isDiscovering: Bool { router?.isDiscovering ?? false }
 
-    func stopDiscovery() {
+    public func stopDiscovery() {
         guard route == nil else { return }
         router?.stopDiscovery()
     }
 
     /// Launches the Default Media Receiver on `sink` and loads `media` once
     /// the session is up (see `receive(_:on:)`).
-    func cast(_ media: CastMedia, to sink: MediaSink, from tab: WebTab?) async {
+    public func cast(_ media: CastMedia, to sink: MediaSink, from tab: WebTab?) async {
         guard let router else { return }
         if route != nil { stop() }
         self.media = media
@@ -90,7 +89,7 @@ final class CastController {
         }
     }
 
-    func togglePlayback() {
+    public func togglePlayback() {
         guard let route, let sessionID, let mediaSessionID else { return }
         sequenceNumber += 1
         route.send(CastProtocol.playbackMessage(clientID: clientID, sessionID: sessionID, mediaSessionID: mediaSessionID,
@@ -98,7 +97,7 @@ final class CastController {
     }
 
     /// Stops the receiver app on the device.
-    func stop() {
+    public func stop() {
         route?.terminate()
         reset()
     }
@@ -143,7 +142,7 @@ final class CastController {
 
 extension WebTab {
     /// The media of the page to cast: the one playing, else the largest one.
-    func castableMedia() async -> Result<CastMedia, CastMediaError> {
+    public func castableMedia() async -> Result<CastMedia, CastMediaError> {
         guard let engine,
               let found = await engine.evaluateJavaScript(Self.castableMediaScript) as? [String: Any],
               let url = found["url"] as? String else {
@@ -159,7 +158,7 @@ extension WebTab {
     }
 
     /// Pauses the page once its media plays on the device.
-    func pauseMedia() {
+    public func pauseMedia() {
         engine?.executeJavaScript("document.querySelectorAll('video, audio').forEach(m => m.pause())")
     }
 
@@ -182,6 +181,10 @@ extension WebTab {
     """
 }
 
-struct CastMediaError: Error {
-    let description: String
+public struct CastMediaError: Error {
+    public let description: String
+
+    public init(description: String) {
+        self.description = description
+    }
 }

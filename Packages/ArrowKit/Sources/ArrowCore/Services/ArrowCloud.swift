@@ -1,32 +1,33 @@
-import ArrowCore
 import ArrowKit
-import CryptoKit
+import Crypto
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import Observation
-import SwiftUI
 
 /// Client of Arrow's self-hosted server (see server/README.md): accounts,
 /// end-to-end encrypted sync, sharing, AI and feedback.
 @MainActor
 @Observable
-final class ArrowCloud {
-    struct User: Codable, Equatable {
-        var id: String
-        var email: String
-        var displayName: String
+public final class ArrowCloud {
+    public struct User: Codable, Equatable {
+        public var id: String
+        public var email: String
+        public var displayName: String
     }
 
-    struct APIError: LocalizedError {
-        var status: Int
-        var code: String
-        var message: String
-        var errorDescription: String? { message }
+    public struct APIError: LocalizedError {
+        public var status: Int
+        public var code: String
+        public var message: String
+        public var errorDescription: String? { message }
     }
 
-    private(set) var user: User?
-    private(set) var isSyncing = false
-    private(set) var lastSyncError: String?
-    private(set) var lastSyncDate: Date?
+    public private(set) var user: User?
+    public private(set) var isSyncing = false
+    public private(set) var lastSyncError: String?
+    public private(set) var lastSyncDate: Date?
 
     @ObservationIgnored private weak var store: BrowserStore?
     @ObservationIgnored private let platform: any Platform
@@ -53,7 +54,7 @@ final class ArrowCloud {
         }
     }
 
-    init(store: BrowserStore) {
+    public init(store: BrowserStore) {
         self.store = store
         platform = store.platform
         syncStateURL = store.dataDirectory.appendingPathComponent("SyncState.json")
@@ -75,7 +76,7 @@ final class ArrowCloud {
         return URL(string: value.hasSuffix("/") ? String(value.dropLast()) : value)
     }
 
-    var isSignedIn: Bool { token != nil && user != nil }
+    public var isSignedIn: Bool { token != nil && user != nil }
 
     // MARK: - HTTP
 
@@ -130,14 +131,14 @@ final class ArrowCloud {
         var user: User
     }
 
-    func register(email: String, password: String, displayName: String) async throws {
+    public func register(email: String, password: String, displayName: String) async throws {
         let data = try await request("POST", "/v1/auth/register",
                                      body: Credentials(email: email, password: password, displayName: displayName.isEmpty ? nil : displayName),
                                      authenticated: false)
         try adopt(data)
     }
 
-    func signIn(email: String, password: String) async throws {
+    public func signIn(email: String, password: String) async throws {
         let data = try await request("POST", "/v1/auth/login", body: Credentials(email: email, password: password),
                                      authenticated: false)
         try adopt(data)
@@ -150,14 +151,14 @@ final class ArrowCloud {
         startSync()
     }
 
-    func signOut() async {
+    public func signOut() async {
         _ = try? await request("POST", "/v1/auth/logout")
         stopSync()
         token = nil
         user = nil
     }
 
-    func refreshUser() async {
+    public func refreshUser() async {
         struct Me: Decodable { var user: User }
         guard let data = try? await request("GET", "/v1/me"), let me = try? JSONDecoder().decode(Me.self, from: data) else { return }
         user = me.user
@@ -167,11 +168,11 @@ final class ArrowCloud {
     // MARK: - Encryption
 
     /// Base64 recovery key: the only way to decrypt synced data on a new Mac.
-    var recoveryKey: String {
+    public var recoveryKey: String {
         SyncKey.current(in: secrets).withUnsafeBytes { Data($0).base64EncodedString() }
     }
 
-    func restore(recoveryKey: String) -> Bool {
+    public func restore(recoveryKey: String) -> Bool {
         guard let data = Data(base64Encoded: recoveryKey.trimmingCharacters(in: .whitespacesAndNewlines)),
               data.count == 32 else { return false }
         SyncKey.store(SymmetricKey(data: data), in: secrets)
@@ -231,19 +232,19 @@ final class ArrowCloud {
         var profiles: [Profile]
     }
 
-    func startSync() {
+    public func startSync() {
         guard store?.settings.syncEnabled == true, token != nil, eventsTask == nil else { return }
         eventsTask = Task { [weak self] in await self?.listenForEvents() }
         Task { await syncNow() }
     }
 
-    func stopSync() {
+    public func stopSync() {
         eventsTask?.cancel()
         eventsTask = nil
     }
 
     /// Debounced push after a local change.
-    func scheduleSync() {
+    public func scheduleSync() {
         guard store?.settings.syncEnabled == true, token != nil else { return }
         pushTask?.cancel()
         pushTask = Task { [weak self] in
@@ -253,7 +254,7 @@ final class ArrowCloud {
         }
     }
 
-    func syncNow() async {
+    public func syncNow() async {
         guard !isSyncing, let store, store.settings.syncEnabled, token != nil else { return }
         isSyncing = true
         defer { isSyncing = false }
@@ -370,9 +371,13 @@ final class ArrowCloud {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             request.timeoutInterval = 3600
             do {
-                let (bytes, _) = try await URLSession.shared.bytes(for: request)
+                #if canImport(FoundationNetworking)
+                let lines = try await URLSession.shared.lines(for: request)
+                #else
+                let lines = try await URLSession.shared.bytes(for: request).0.lines
+                #endif
                 delay = .seconds(1)
-                for try await line in bytes.lines where line.hasPrefix("data:") {
+                for try await line in lines where line.hasPrefix("data:") {
                     let json = Data(line.dropFirst(5).utf8)
                     if let event = try? JSONDecoder().decode([String: Int64].self, from: json),
                        let revision = event["revision"], revision > syncState.revision {
@@ -388,7 +393,7 @@ final class ArrowCloud {
 
     // MARK: - AI
 
-    enum AITask: String {
+    public enum AITask: String {
         case tidyTabTitle = "tidy-tab-title"
         case tidyDownloadName = "tidy-download-name"
         case previewSummary = "preview-summary"
@@ -414,7 +419,7 @@ final class ArrowCloud {
     }
 
     /// Runs an AI task. Returns nil when the model declined (refusal).
-    func ai(_ task: AITask, prompt: String) async throws -> String? {
+    public func ai(_ task: AITask, prompt: String) async throws -> String? {
         let data = try await request("POST", "/v1/ai/messages",
                                      body: AIRequest(task: task.rawValue, messages: [.init(role: "user", content: prompt)]))
         let response = try JSONDecoder().decode(AIResponse.self, from: data)
@@ -444,7 +449,7 @@ final class ArrowCloud {
     }
 
     /// Publishes a public page listing `tabs`; returns its URL.
-    func share(kind: String, title: String, tabs: [Tab]) async throws -> String {
+    public func share(kind: String, title: String, tabs: [Tab]) async throws -> String {
         let body = ShareRequest(kind: kind, title: title,
                                 payload: .init(items: tabs.map { .init(title: $0.displayTitle, url: $0.pinnedURL ?? $0.url) }))
         let data = try await request("POST", "/v1/shares", body: body)
@@ -452,23 +457,23 @@ final class ArrowCloud {
     }
 
     /// A published share, read without authentication.
-    struct SharedCollection: Decodable {
-        struct Payload: Decodable {
-            struct Link: Decodable {
-                var title: String
-                var url: String
+    public struct SharedCollection: Decodable {
+        public struct Payload: Decodable {
+            public struct Link: Decodable {
+                public var title: String
+                public var url: String
             }
 
-            var items: [Link]?
+            public var items: [Link]?
         }
 
-        var id: String
-        var kind: String
-        var title: String
-        var payload: Payload?
+        public var id: String
+        public var kind: String
+        public var title: String
+        public var payload: Payload?
     }
 
-    func fetchShare(_ id: String) async throws -> SharedCollection {
+    public func fetchShare(_ id: String) async throws -> SharedCollection {
         let safeID = id.filter { $0.isLetter || $0.isNumber }
         let data = try await request("GET", "/v1/shares/\(safeID)", authenticated: false)
         return try JSONDecoder().decode(SharedCollection.self, from: data)
@@ -481,7 +486,7 @@ final class ArrowCloud {
         var osVersion: String
     }
 
-    func sendFeedback(_ message: String, email: String?) async throws {
+    public func sendFeedback(_ message: String, email: String?) async throws {
         let version = platform.appVersion
         _ = try await request("POST", "/v1/feedback", body: FeedbackRequest(
             message: message, email: email?.isEmpty == true ? nil : email, appVersion: version,
@@ -498,7 +503,7 @@ private struct AnyEncodable: Encodable {
 }
 
 extension JSONEncoder {
-    static var arrow: JSONEncoder {
+    public static var arrow: JSONEncoder {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         // Exact round trip: a pulled document re-encodes to the same bytes,
@@ -509,7 +514,7 @@ extension JSONEncoder {
 }
 
 extension JSONDecoder {
-    static var arrow: JSONDecoder {
+    public static var arrow: JSONDecoder {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .deferredToDate
         return decoder
@@ -530,87 +535,5 @@ private enum SyncKey {
 
     static func store(_ key: SymmetricKey, in secrets: any SecretStore) {
         secrets.setSecret(key.withUnsafeBytes { Data($0).base64EncodedString() }, for: "syncKey")
-    }
-}
-
-// MARK: - Settings UI
-
-/// Sign in / account status in Settings ▸ Arrow Cloud.
-struct AccountView: View {
-    @Environment(BrowserStore.self) private var store
-    @State private var email = ""
-    @State private var password = ""
-    @State private var isRegistering = false
-    @State private var error: String?
-    @State private var recovery = ""
-    @State private var isWorking = false
-
-    var body: some View {
-        let cloud = store.cloud
-        if let user = cloud.user {
-            LabeledContent("Signed in as", value: "\(user.displayName) (\(user.email))")
-            HStack {
-                Button("Sync Now") { Task { await cloud.syncNow() } }
-                    .disabled(!store.settings.syncEnabled || cloud.isSyncing)
-                if cloud.isSyncing { ProgressView().controlSize(.small) }
-                if let date = cloud.lastSyncDate {
-                    Text("Last sync \(date.formatted(date: .omitted, time: .shortened))")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button("Sign Out") { Task { await cloud.signOut() } }
-            }
-            if let message = cloud.lastSyncError {
-                Text(message).font(.caption).foregroundStyle(.red)
-            }
-            DisclosureGroup("Recovery key") {
-                Text("Your synced data is end-to-end encrypted. Keep this key to restore it on another Mac.")
-                    .font(.caption).foregroundStyle(.secondary)
-                HStack {
-                    Text(cloud.recoveryKey).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
-                    Button("Copy") {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(cloud.recoveryKey, forType: .string)
-                    }
-                }
-                HStack {
-                    TextField("Paste a recovery key from another Mac", text: $recovery)
-                    Button("Use Key") {
-                        error = cloud.restore(recoveryKey: recovery) ? nil : "Invalid recovery key"
-                    }
-                }
-            }
-        } else {
-            TextField("Email", text: $email)
-            SecureField("Password", text: $password)
-            if let error {
-                Text(error).font(.caption).foregroundStyle(.red)
-            }
-            HStack {
-                Toggle("Create a new account", isOn: $isRegistering)
-                Spacer()
-                if isWorking { ProgressView().controlSize(.small) }
-                Button(isRegistering ? "Create Account" : "Sign In") { submit(cloud) }
-                    .disabled(email.isEmpty || password.count < 8 || store.settings.cloudServerURL.isEmpty || isWorking)
-            }
-        }
-    }
-
-    private func submit(_ cloud: ArrowCloud) {
-        isWorking = true
-        Task {
-            defer { isWorking = false }
-            do {
-                if isRegistering {
-                    try await cloud.register(email: email, password: password, displayName: "")
-                } else {
-                    try await cloud.signIn(email: email, password: password)
-                }
-                error = nil
-                password = ""
-            } catch {
-                self.error = error.localizedDescription
-            }
-        }
     }
 }

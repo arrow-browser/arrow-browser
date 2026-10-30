@@ -1,3 +1,4 @@
+import ArrowCore
 import ArrowKit
 import SwiftUI
 import UniformTypeIdentifiers
@@ -198,7 +199,7 @@ private struct FavoriteTile: View {
         let isSelected = controller.displayedTabIDs.contains(tab.id)
         let live = store.tabs[tab.id]
         ZStack(alignment: .topTrailing) {
-            FaviconView(url: tab.url, image: live?.favicon, size: 16)
+            FaviconView(url: tab.url, image: live?.favicon?.nsImage, size: 16)
                 .frame(maxWidth: .infinity)
                 .frame(height: 46)
                 .background(
@@ -247,7 +248,7 @@ private struct FavoritePreview: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if let snapshot = live?.snapshot {
+            if let snapshot = live?.snapshot?.nsImage {
                 Image(nsImage: snapshot)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -255,7 +256,7 @@ private struct FavoritePreview: View {
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
             HStack(spacing: 8) {
-                FaviconView(url: tab.url, image: live?.favicon, size: 16)
+                FaviconView(url: tab.url, image: live?.favicon?.nsImage, size: 16)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(live?.displayTitle ?? tab.displayTitle)
                         .font(.system(size: 13, weight: .semibold))
@@ -625,7 +626,7 @@ struct FaviconView: View {
     @State private var fetched: NSImage?
 
     var body: some View {
-        if let image = image ?? fetched ?? FaviconCache.shared.image(for: url) {
+        if let image = image ?? fetched ?? FaviconCache.shared.image(for: url)?.nsImage {
             Image(nsImage: image)
                 .resizable()
                 .interpolation(.high)
@@ -645,7 +646,7 @@ struct FaviconView: View {
                 .background(RoundedRectangle(cornerRadius: size * 0.25, style: .continuous).fill(Color.gray.opacity(0.55)))
                 .task(id: url) {
                     guard url.hasPrefix("http") else { return }
-                    fetched = await FaviconCache.shared.fetch(for: url)
+                    fetched = await FaviconCache.shared.fetch(for: url)?.nsImage
                 }
         }
     }

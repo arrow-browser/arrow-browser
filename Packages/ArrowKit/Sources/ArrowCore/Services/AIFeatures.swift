@@ -1,19 +1,18 @@
-import AppKit
 import ArrowKit
 import Foundation
 
 /// Arc Max features, powered by Arrow Cloud's AI endpoint.
 @MainActor
-enum AIFeatures {
+public enum AIFeatures {
     private static func cloud(_ store: BrowserStore) -> ArrowCloud? {
         guard store.settings.aiEnabled, !store.isIncognito, store.cloud.isSignedIn else { return nil }
         return store.cloud
     }
 
-    static func isAvailable(_ store: BrowserStore) -> Bool { cloud(store) != nil }
+    public static func isAvailable(_ store: BrowserStore) -> Bool { cloud(store) != nil }
 
     /// Tidy Tab Titles: shortens the title of a newly pinned tab.
-    static func tidyTitle(of tabID: UUID, in store: BrowserStore) {
+    public static func tidyTitle(of tabID: UUID, in store: BrowserStore) {
         guard store.settings.tidyTabTitles, let cloud = cloud(store), let tab = store.state.tab(tabID),
               tab.customTitle == nil, !tab.title.isEmpty else { return }
         Task {
@@ -24,7 +23,7 @@ enum AIFeatures {
     }
 
     /// Tidy Downloads: renames a finished download with a readable name.
-    static func tidyDownload(_ item: DownloadManager.Item, in store: BrowserStore, rename: @escaping @MainActor (URL) -> Void) {
+    public static func tidyDownload(_ item: DownloadManager.Item, in store: BrowserStore, rename: @escaping @MainActor (URL) -> Void) {
         guard store.settings.tidyDownloads, let cloud = cloud(store) else { return }
         Task {
             let prompt = "File: \(item.fileName)\nURL: \(item.url)"
@@ -44,11 +43,11 @@ enum AIFeatures {
     }
 
     /// Max ▸ Tidy Tabs: sorts the Today tabs of a space by topic.
-    static func canTidy(_ space: Space, store: BrowserStore) -> Bool {
+    public static func canTidy(_ space: Space, store: BrowserStore) -> Bool {
         store.settings.tidyTabs && cloud(store) != nil && space.today.count > 6
     }
 
-    static func tidyToday(in space: Space, store: BrowserStore) async {
+    public static func tidyToday(in space: Space, store: BrowserStore) async {
         guard let cloud = cloud(store) else { return }
         let items = space.today
         let prompt = items.enumerated().map { index, node in
@@ -68,7 +67,7 @@ enum AIFeatures {
     }
 
     /// Ask on Page: answers a question about the current page.
-    static func ask(_ question: String, about tab: WebTab, store: BrowserStore) async -> String {
+    public static func ask(_ question: String, about tab: WebTab, store: BrowserStore) async -> String {
         guard let cloud = cloud(store) else { return "Turn on AI features in Settings ▸ Arrow Cloud." }
         let text = await pageText(tab)
         let prompt = "Page: \(tab.displayTitle)\nURL: \(tab.url)\n\n\(text)\n\nQuestion: \(question)"
@@ -80,7 +79,7 @@ enum AIFeatures {
     }
 
     /// 5-second previews: summary of a page.
-    static func summarize(_ tab: WebTab, store: BrowserStore) async -> String {
+    public static func summarize(_ tab: WebTab, store: BrowserStore) async -> String {
         guard let cloud = cloud(store) else { return "Turn on AI features in Settings ▸ Arrow Cloud." }
         let text = await pageText(tab)
         do {
@@ -93,8 +92,8 @@ enum AIFeatures {
 }
 
 /// Reply of the tidy-tabs task: {"groups":[{"name":"…","tabs":[1,3]}]}.
-enum TidyGroups {
-    static func parse(_ reply: String) -> [[Int]]? {
+public enum TidyGroups {
+    public static func parse(_ reply: String) -> [[Int]]? {
         // Models sometimes wrap JSON in a code fence.
         guard let start = reply.firstIndex(of: "{"), let end = reply.lastIndex(of: "}") else { return nil }
         struct Reply: Decodable {

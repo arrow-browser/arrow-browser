@@ -1,4 +1,5 @@
 import AppKit
+import ArrowCore
 import ArrowKit
 
 /// Imports spaces, pinned tabs and favorites from Arc, and bookmarks from

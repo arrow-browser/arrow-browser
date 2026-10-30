@@ -1,4 +1,5 @@
 import AppKit
+import ArrowCore
 import ArrowKit
 
 // AppleScript support, compatible with Arc's dictionary (Resources/Arrow.sdef):

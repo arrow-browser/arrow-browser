@@ -1,3 +1,4 @@
+import ArrowCore
 import ArrowKit
 import SwiftUI
 
@@ -83,7 +84,7 @@ struct TabSwitcherOverlay: View {
             ForEach(Array(tabIDs.enumerated()), id: \.element) { position, id in
                 if let tab = store.state.tab(id) {
                     VStack(spacing: 8) {
-                        FaviconView(url: tab.url, image: store.tabs[id]?.favicon, size: 32)
+                        FaviconView(url: tab.url, image: store.tabs[id]?.favicon?.nsImage, size: 32)
                         Text(store.tabs[id]?.displayTitle ?? tab.displayTitle)
                             .font(.system(size: 11.5, weight: .medium))
                             .lineLimit(2)
