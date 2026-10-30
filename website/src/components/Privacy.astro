@@ -1,0 +1,142 @@
+---
+import { dictionaries, type Locale } from '../i18n';
+import Icon, { type IconName } from './Icon.astro';
+
+interface Props {
+	lang: Locale;
+}
+
+const { lang } = Astro.props;
+const t = dictionaries[lang].privacy;
+
+const points: { id: keyof typeof t.points; icon: IconName }[] = [
+	{ id: 'telemetry', icon: 'eyeOff' },
+	{ id: 'blocker', icon: 'shield' },
+	{ id: 'local', icon: 'laptop' },
+	{ id: 'walls', icon: 'walls' },
+];
+---
+
+<section class="section" id="privacy">
+	<div class="container">
+		<div class="panel">
+			<header class="section-head reveal">
+				<p class="eyebrow">{t.eyebrow}</p>
+				<h2 class="section-title">{t.title}</h2>
+				<p class="section-lead">{t.lead}</p>
+			</header>
+			<ul class="points">
+				{
+					points.map((point) => (
+						<li class="reveal">
+							<span class="icon">
+								<Icon name={point.icon} />
+							</span>
+							<h3>{t.points[point.id].title}</h3>
+							<p>{t.points[point.id].body}</p>
+						</li>
+					))
+				}
+			</ul>
+			<p class="footnote reveal">
+				<a href="#open-source">{t.footnote}</a>
+			</p>
+		</div>
+	</div>
+</section>
+
+<style>
+	/* Always dark, like the browser's private windows. */
+	.panel {
+		--text: #f4f2fa;
+		--text-muted: #b4b0c4;
+		--accent: #c3b8ff;
+		--line: rgb(255 255 255 / 0.1);
+
+		position: relative;
+		padding: clamp(32px, 6vw, 88px);
+		border-radius: clamp(28px, 3vw, 40px);
+		background:
+			radial-gradient(60% 70% at 15% 0%, rgb(110 80 200 / 0.55), transparent 70%),
+			radial-gradient(50% 60% at 100% 100%, rgb(212 133 242 / 0.28), transparent 70%),
+			#17141f;
+		color: var(--text);
+		color-scheme: dark;
+		accent-color: var(--accent);
+		overflow: hidden;
+		isolation: isolate;
+
+		&::after {
+			content: '';
+			position: absolute;
+			inset: 0;
+			z-index: -1;
+			background-image: var(--grain);
+			opacity: 0.16;
+			mix-blend-mode: overlay;
+		}
+	}
+
+	.points {
+		display: grid;
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		gap: clamp(24px, 3vw, 40px);
+		padding: 0;
+		list-style: none;
+
+		@media (max-width: 1000px) {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+
+		@media (max-width: 560px) {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		li {
+			display: grid;
+			align-content: start;
+			gap: 10px;
+			padding-top: 24px;
+			border-top: 1px solid var(--line);
+		}
+
+		h3 {
+			font-size: 1.125rem;
+			font-weight: 650;
+			letter-spacing: -0.015em;
+		}
+
+		p {
+			color: var(--text-muted);
+			font-size: 0.984rem;
+		}
+	}
+
+	.icon {
+		display: grid;
+		place-items: center;
+		width: 44px;
+		height: 44px;
+		margin-bottom: 6px;
+		border-radius: 13px;
+		background: rgb(255 255 255 / 0.08);
+		box-shadow: inset 0 0 0 1px var(--line);
+		color: var(--accent);
+	}
+
+	.footnote {
+		margin-top: clamp(40px, 5vw, 64px);
+		font-size: 1.0625rem;
+		font-weight: 500;
+
+		a {
+			text-decoration-color: rgb(255 255 255 / 0.35);
+			text-underline-offset: 4px;
+			transition: text-decoration-color 0.2s ease;
+
+			&:hover {
+				text-decoration-color: currentColor;
+			}
+		}
+	}
+</style>

@@ -1,0 +1,72 @@
+---
+import { dictionaries, type Locale } from '../i18n';
+import LanguagePicker from './LanguagePicker.astro';
+import Logo from './Logo.astro';
+
+interface Props {
+	lang: Locale;
+}
+
+const { lang } = Astro.props;
+const t = dictionaries[lang].footer;
+const year = new Date().getFullYear();
+---
+
+<footer class="footer">
+	<div class="container">
+		<div class="top">
+			<div class="brand">
+				<Logo id="footer-logo" size={32} />
+				<div>
+					<p class="name">Arrow</p>
+					<p class="tagline">{t.tagline}</p>
+				</div>
+			</div>
+			<LanguagePicker lang={lang} long />
+		</div>
+		<div class="legal">
+			<p>{t.noTracking}</p>
+			<p>{t.trademarks}</p>
+			<p>© {year} Arrow</p>
+		</div>
+	</div>
+</footer>
+
+<style>
+	.footer {
+		padding-block: 40px 48px;
+		border-top: 1px solid var(--line);
+	}
+
+	.top {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 24px;
+	}
+
+	.brand {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+
+	.name {
+		font-weight: 700;
+		letter-spacing: -0.02em;
+	}
+
+	.tagline {
+		color: var(--text-muted);
+		font-size: 0.9375rem;
+	}
+
+	.legal {
+		display: grid;
+		gap: 6px;
+		margin-top: 32px;
+		color: var(--text-muted);
+		font-size: 0.8125rem;
+	}
+</style>

@@ -1,0 +1,247 @@
+:root {
+	color-scheme: light dark;
+
+	/* Same canvases as the browser's light and dark space themes. */
+	--canvas: #fbfbfd;
+	--bg: var(--canvas);
+	--surface: #ffffff;
+	--surface-muted: #f3f2f8;
+	--text: #17151f;
+	--text-muted: #5f5b6d;
+	--line: rgb(23 21 31 / 0.08);
+	--line-strong: rgb(23 21 31 / 0.14);
+	--accent: #5257f0;
+	--accent-soft: rgb(100 106 255 / 0.12);
+	--button: #17151f;
+	--on-button: #ffffff;
+
+	/* Space theme swatches of the browser's color picker. */
+	--lavender: #9a8cff;
+	--orchid: #d485f2;
+	--rose: #ff8fa3;
+	--apricot: #ffb36b;
+	--mint: #7ed6a5;
+	--sky: #6ec6f5;
+	--indigo: #5b7cfa;
+	--brand-gradient: linear-gradient(135deg, #8c78ff, #d485f2 50%, #ff8fa3);
+
+	--shadow-card: 0 1px 2px rgb(23 21 31 / 0.04), 0 8px 24px -12px rgb(23 21 31 / 0.12);
+	--shadow-window: 0 2px 6px rgb(40 30 80 / 0.06), 0 24px 60px -20px rgb(40 30 80 / 0.28),
+		0 60px 120px -40px rgb(90 60 160 / 0.3);
+	--radius-lg: 28px;
+	--radius-md: 18px;
+	--radius-sm: 12px;
+
+	--font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+	--page-width: 1200px;
+	--gutter: clamp(16px, 4vw, 40px);
+	--section-space: clamp(88px, 12vw, 168px);
+
+	/* Film grain laid over gradients, as on the browser's space themes. */
+	--grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 .9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+
+	@media (prefers-color-scheme: dark) {
+		--canvas: #1c1b22;
+		--bg: #131218;
+		--surface: #1c1b22;
+		--surface-muted: #19181f;
+		--text: #f4f2fa;
+		--text-muted: #a9a5b8;
+		--line: rgb(255 255 255 / 0.08);
+		--line-strong: rgb(255 255 255 / 0.14);
+		--accent: #a3a6ff;
+		--accent-soft: rgb(140 143 255 / 0.16);
+		--button: #f4f2fa;
+		--on-button: #17151f;
+		--shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -12px rgb(0 0 0 / 0.5);
+		--shadow-window: 0 2px 6px rgb(0 0 0 / 0.3), 0 24px 60px -20px rgb(0 0 0 / 0.6),
+			0 60px 120px -40px rgb(90 60 160 / 0.45);
+	}
+
+	accent-color: var(--accent);
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html {
+	scroll-padding-top: 80px;
+	-webkit-text-size-adjust: 100%;
+	text-size-adjust: 100%;
+
+	@media (prefers-reduced-motion: no-preference) {
+		scroll-behavior: smooth;
+	}
+}
+
+body {
+	margin: 0;
+	background: var(--bg);
+	color: var(--text);
+	font-family: var(--font-sans);
+	font-size: 1.0625rem;
+	line-height: 1.55;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	overflow-x: clip;
+}
+
+h1,
+h2,
+h3,
+p,
+ul {
+	margin: 0;
+}
+
+h1,
+h2,
+h3 {
+	line-height: 1.08;
+	letter-spacing: -0.025em;
+	text-wrap: balance;
+}
+
+p {
+	text-wrap: pretty;
+}
+
+img,
+svg {
+	display: block;
+	max-width: 100%;
+}
+
+img {
+	height: auto;
+}
+
+a {
+	color: inherit;
+}
+
+:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 3px;
+	border-radius: 6px;
+}
+
+::selection {
+	background: color-mix(in srgb, var(--lavender) 35%, transparent);
+}
+
+.container {
+	width: min(100% - 2 * var(--gutter), var(--page-width));
+	margin-inline: auto;
+}
+
+.section {
+	padding-block: var(--section-space) 0;
+}
+
+.section-head {
+	max-width: 46rem;
+	display: grid;
+	gap: 16px;
+	margin-bottom: clamp(40px, 6vw, 64px);
+}
+
+.eyebrow {
+	color: var(--accent);
+	font-size: 0.9375rem;
+	font-weight: 600;
+	letter-spacing: 0.01em;
+}
+
+.section-title {
+	font-size: clamp(2.125rem, 2.4vw + 1.4rem, 3.5rem);
+	font-weight: 700;
+	letter-spacing: -0.03em;
+}
+
+.section-lead {
+	color: var(--text-muted);
+	font-size: clamp(1.0625rem, 0.4vw + 1rem, 1.25rem);
+}
+
+.button {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 48px;
+	padding: 0 22px;
+	border-radius: 999px;
+	font-size: 1rem;
+	font-weight: 600;
+	text-decoration: none;
+	transition:
+		transform 0.2s ease,
+		background-color 0.2s ease,
+		box-shadow 0.2s ease;
+
+	&:active {
+		transform: scale(0.98);
+	}
+}
+
+.button-primary {
+	background: var(--button);
+	color: var(--on-button);
+	box-shadow: 0 6px 20px -8px rgb(23 21 31 / 0.45);
+
+	&:hover {
+		box-shadow: 0 10px 28px -10px rgb(23 21 31 / 0.55);
+	}
+
+	svg {
+		transition: translate 0.2s ease;
+	}
+
+	&:hover svg {
+		translate: 2px -2px;
+	}
+}
+
+.button-secondary {
+	background: color-mix(in srgb, var(--surface) 70%, transparent);
+	color: var(--text);
+	box-shadow: inset 0 0 0 1px var(--line-strong);
+
+	&:hover {
+		background: var(--surface);
+	}
+}
+
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+	border: 0;
+}
+
+/* Elements fade in as they scroll into view. Decorative only: browsers
+   without scroll-driven animations show them as is. */
+@media (prefers-reduced-motion: no-preference) {
+	@supports ((animation-timeline: view()) and (animation-range: entry)) {
+		@keyframes reveal {
+			from {
+				opacity: 0;
+				translate: 0 32px;
+			}
+		}
+
+		.reveal {
+			animation: reveal linear backwards;
+			animation-timeline: view();
+			animation-range: entry 0% entry 60%;
+		}
+	}
+}

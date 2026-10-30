@@ -1,0 +1,57 @@
+---
+import { getImage } from 'astro:assets';
+import { getAbsoluteLocaleUrl } from 'astro:i18n';
+import { dictionaries, languages, type Locale } from '../i18n';
+import screenshot from '../assets/screenshot.webp';
+import '../styles/global.css';
+
+interface Props {
+	lang: Locale;
+}
+
+const { lang } = Astro.props;
+const t = dictionaries[lang];
+const locales = Object.keys(languages) as Locale[];
+// Canonical, hreflang and Open Graph URLs must be absolute: only emitted
+// once the site's URL is configured (SITE_URL).
+const site = Astro.site;
+const ogImage = site ? await getImage({ src: screenshot, width: 1200, format: 'png' }) : undefined;
+---
+
+<!doctype html>
+<html lang={lang}>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="color-scheme" content="light dark" />
+		<meta name="theme-color" content="#fbfbfd" media="(prefers-color-scheme: light)" />
+		<meta name="theme-color" content="#131218" media="(prefers-color-scheme: dark)" />
+		<title>{t.meta.title}</title>
+		<meta name="description" content={t.meta.description} />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+		<meta name="generator" content={Astro.generator} />
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content="Arrow" />
+		<meta property="og:title" content={t.meta.title} />
+		<meta property="og:description" content={t.meta.description} />
+		<meta property="og:locale" content={lang === 'fr' ? 'fr_FR' : 'en_US'} />
+		<meta name="twitter:card" content="summary_large_image" />
+		{
+			site && (
+				<>
+					<link rel="canonical" href={getAbsoluteLocaleUrl(lang)} />
+					{locales.map((locale) => (
+						<link rel="alternate" hreflang={locale} href={getAbsoluteLocaleUrl(locale)} />
+					))}
+					<link rel="alternate" hreflang="x-default" href={getAbsoluteLocaleUrl('en')} />
+					<meta property="og:url" content={getAbsoluteLocaleUrl(lang)} />
+					{ogImage && <meta property="og:image" content={new URL(ogImage.src, site).href} />}
+				</>
+			)
+		}
+	</head>
+	<body>
+		<slot />
+	</body>
+</html>

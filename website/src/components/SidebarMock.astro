@@ -1,0 +1,213 @@
+---
+// A drawing of the browser's sidebar. Decorative: hidden from assistive technologies.
+import Icon from './Icon.astro';
+
+interface Props {
+	/** Space names; with several, the parent shows the selected one (see Spaces.astro). */
+	names: string[];
+	newTab: string;
+	folder?: string;
+	/** Number of space dots in the bottom bar. */
+	dots?: number;
+}
+
+const { names, newTab, folder, dots = 0 } = Astro.props;
+const favicons = ['#ff7a59', '#5b8cff', '#2bb673', '#f5b83d', '#a970ff'];
+---
+
+<div class="sidebar" aria-hidden="true">
+	<div class="lights"><i></i><i></i><i></i></div>
+	<div class="url"><span style="--w: 46%"></span></div>
+	<div class="favorites">
+		<span><b style={`--f: ${favicons[0]}`}></b></span>
+		<span><b style={`--f: ${favicons[1]}`}></b></span>
+		<span><b style={`--f: ${favicons[4]}`}></b></span>
+	</div>
+	<div class="space">
+		{
+			names.map((name, i) => (
+				<span class="space-name" data-space={i}>
+					{name}
+				</span>
+			))
+		}
+	</div>
+	{
+		folder && (
+			<>
+				<div class="row label">
+					<Icon name="chevron" size={11} class="open" />
+					<Icon name="folder" size={13} />
+					{folder}
+				</div>
+				<div class="row nested">
+					<b style={`--f: ${favicons[2]}`} />
+					<span style="--w: 62%" />
+				</div>
+				<div class="row nested">
+					<b style={`--f: ${favicons[3]}`} />
+					<span style="--w: 48%" />
+				</div>
+			</>
+		)
+	}
+	<div class="row label"><Icon name="plus" size={13} />{newTab}</div>
+	<div class="row"><b style={`--f: ${favicons[1]}`}></b><span style="--w: 70%"></span></div>
+	<div class="row selected"><b style={`--f: ${favicons[0]}`}></b><span style="--w: 58%"></span></div>
+	<div class="row"><b style={`--f: ${favicons[3]}`}></b><span style="--w: 64%"></span></div>
+	<div class="row"><b style={`--f: ${favicons[2]}`}></b><span style="--w: 40%"></span></div>
+	{
+		dots > 0 && (
+			<div class="dots">
+				{Array.from({ length: dots }, (_, i) => (
+					<i class="space-dot" data-space={i} />
+				))}
+			</div>
+		)
+	}
+</div>
+
+<style>
+	.sidebar {
+		--ink: rgb(23 21 31 / 0.82);
+		--skeleton: rgb(23 21 31 / 0.14);
+		--control: rgb(255 255 255 / 0.5);
+		--selected: rgb(255 255 255 / 0.78);
+
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		height: 100%;
+		padding: 10px 8px;
+		color: var(--ink);
+		font-size: 11px;
+		font-weight: 500;
+		line-height: 1;
+
+		@media (prefers-color-scheme: dark) {
+			--ink: rgb(255 255 255 / 0.88);
+			--skeleton: rgb(255 255 255 / 0.18);
+			--control: rgb(255 255 255 / 0.08);
+			--selected: rgb(255 255 255 / 0.14);
+		}
+	}
+
+	.lights {
+		display: flex;
+		gap: 5px;
+		padding: 2px 4px 8px;
+
+		i {
+			width: 9px;
+			height: 9px;
+			border-radius: 50%;
+			background: #ff5f57;
+		}
+
+		i:nth-child(2) {
+			background: #febc2e;
+		}
+
+		i:nth-child(3) {
+			background: #28c840;
+		}
+	}
+
+	.url {
+		display: flex;
+		align-items: center;
+		height: 24px;
+		padding-inline: 8px;
+		border-radius: 7px;
+		background: var(--control);
+	}
+
+	.favorites {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 5px;
+		margin-block: 6px 8px;
+
+		span {
+			display: grid;
+			place-items: center;
+			height: 26px;
+			border-radius: 7px;
+			background: var(--control);
+		}
+	}
+
+	b {
+		flex: none;
+		width: 11px;
+		height: 11px;
+		border-radius: 3px;
+		background: var(--f);
+	}
+
+	span[style*='--w'] {
+		width: var(--w);
+		height: 6px;
+		border-radius: 3px;
+		background: var(--skeleton);
+	}
+
+	.space {
+		padding: 4px 6px 6px;
+		opacity: 0.6;
+		font-size: 10px;
+		font-weight: 600;
+	}
+
+	.space-name:not([data-space='0']) {
+		display: none;
+	}
+
+	.row {
+		display: flex;
+		align-items: center;
+		gap: 7px;
+		height: 24px;
+		padding-inline: 6px;
+		border-radius: 7px;
+		white-space: nowrap;
+	}
+
+	.nested {
+		padding-inline-start: 22px;
+	}
+
+	.selected {
+		background: var(--selected);
+		box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+	}
+
+	.row :global(.open) {
+		rotate: 90deg;
+		opacity: 0.6;
+	}
+
+	.dots {
+		display: flex;
+		justify-content: center;
+		gap: 6px;
+		margin-top: auto;
+		padding-top: 10px;
+
+		i {
+			width: 5px;
+			height: 5px;
+			border-radius: 50%;
+			background: var(--ink);
+			opacity: 0.25;
+			transition:
+				opacity 0.3s ease,
+				scale 0.3s ease;
+		}
+
+		[data-space='0'] {
+			opacity: 0.85;
+			scale: 1.3;
+		}
+	}
+</style>
