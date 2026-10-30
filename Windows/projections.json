@@ -9,6 +9,7 @@
   ],
   "include": [
     "Microsoft.UI.Dispatching.DispatcherQueue",
+    "Microsoft.UI.Input.InputNonClientPointerSource",
     "Microsoft.UI.Windowing.AppWindow",
     "Microsoft.UI.Windowing.AppWindowPresenterKind",
     "Microsoft.UI.Xaml.Application",
@@ -17,6 +18,7 @@
     "Microsoft.UI.Xaml.Controls.Button",
     "Microsoft.UI.Xaml.Controls.ColumnDefinition",
     "Microsoft.UI.Xaml.Controls.Grid",
+    "Microsoft.UI.Xaml.Controls.Image",
     "Microsoft.UI.Xaml.Controls.RowDefinition",
     "Microsoft.UI.Xaml.Controls.ScrollViewer",
     "Microsoft.UI.Xaml.Controls.StackPanel",
@@ -28,11 +30,15 @@
     "Microsoft.UI.Xaml.Markup.IXamlMetadataProvider",
     "Microsoft.UI.Xaml.Media.FontFamily",
     "Microsoft.UI.Xaml.Media.GeneralTransform",
+    "Microsoft.UI.Xaml.Media.GradientStop",
+    "Microsoft.UI.Xaml.Media.LinearGradientBrush",
     "Microsoft.UI.Xaml.Media.SolidColorBrush",
     "Microsoft.UI.Xaml.SizeChangedEventArgs",
     "Microsoft.UI.Xaml.Window",
     "Microsoft.UI.Xaml.XamlRoot",
-    "Microsoft.UI.Xaml.XamlTypeInfo.XamlControlsXamlMetaDataProvider"
+    "Microsoft.UI.Xaml.XamlTypeInfo.XamlControlsXamlMetaDataProvider",
+    "Windows.Storage.Streams.DataWriter",
+    "Windows.Storage.Streams.InMemoryRandomAccessStream"
   ],
   "modules": [
     "CWinRT",

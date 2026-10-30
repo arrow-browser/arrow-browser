@@ -137,13 +137,14 @@ Done when a window with one CEF browser runs on Windows and Linux.
   of WinUI and Windows App SDK types it uses (`Windows/projections.json`) and
   generates their projections before building.
 - Started in [`Windows/`](../Windows/README.md): a WinUI window on
-  ArrowCore's `BrowserStore` and `WindowState`, with a sidebar (navigation,
-  address field, the space's tabs, New Tab, the space switcher) and one
+  ArrowCore's `BrowserStore` and `WindowState`, laid out as Arc's on Windows
+  (the toolbar in the title bar, the sidebar, the page in a rounded panel
+  over the space's gradient, in ArrowKit's `ThemePalette` colors), with one
   browser per tab, sandboxed, run by CI. `WindowsPlatform` implements
   `Platform`; logins, cards and Arrow Cloud's secrets are generic
   credentials of the Credential Manager, which encrypts them with DPAPI.
   - The browser is a child window of the WinUI window's, kept over the area
-    the XAML layout leaves it.
+    the XAML layout leaves it, its corners rounded by a window region.
   - WinUI runs the message loop. CEF's external message pump runs its work
     from a hidden window's messages and timer, so it also runs in modal loops
     (moving, resizing a window), and runs the main queue.
