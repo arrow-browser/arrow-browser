@@ -8,14 +8,16 @@ import WinSDK
 import WindowsFoundation
 import WinUI
 
-/// A browser window: the sidebar (navigation, address field, the space's
-/// tabs, the space switcher) next to the selected tab's browser. Browsers
-/// are child windows of the WinUI window's, the shown one kept over the area
-/// the layout leaves it.
+/// A browser window, laid out as Arc's: the toolbar in the title bar
+/// (sidebar toggle, navigation, the address in the middle), the sidebar,
+/// and the selected tab's browser in a rounded panel, over the space's
+/// gradient. Browsers are child windows of the WinUI window's, the shown one
+/// kept over the area the layout leaves it.
 @MainActor
 final class BrowserWindow {
     let store: BrowserStore
     let state: WindowState
+    let brushes: ThemeBrushes
     /// Called once the window has closed.
     var onClose: (() -> Void)?
     /// Saves the selection for the next launch (not for smoke tests).
@@ -23,22 +25,35 @@ final class BrowserWindow {
 
     private let window: Window
     private let handle: HWND
-    private let backButton = BrowserWindow.iconButton(glyph: "\u{E72B}", name: "Back")
-    private let forwardButton = BrowserWindow.iconButton(glyph: "\u{E72A}", name: "Forward")
-    private let reloadButton = BrowserWindow.iconButton(glyph: "\u{E72C}", name: "Reload")
+    private let root = Grid()
+    private let toolbar = Grid()
+    private let titleRow = RowDefinition()
+    private let toolbarLeadingColumn = ColumnDefinition()
+    /// Room for the caption buttons (minimize, maximize, close).
+    private let captionColumn = ColumnDefinition()
+    private let sidebarButton = BrowserWindow.iconButton(Glyph.sidebar, name: "Toggle Sidebar")
+    private let navigation = StackPanel()
+    private let backButton = BrowserWindow.iconButton(Glyph.back, name: "Back")
+    private let forwardButton = BrowserWindow.iconButton(Glyph.forward, name: "Forward")
+    private let reloadButton = BrowserWindow.iconButton(Glyph.reload, name: "Reload")
+    private let copyLinkButton = BrowserWindow.iconButton(Glyph.link, name: "Copy URL", size: 14)
+    /// The address in short form (the host), which edits the address.
+    private let addressButton = Button()
+    private let addressText = TextBlock()
     private let addressField = TextBox()
-    private let spaceTitle = TextBlock()
-    private let tabList = StackPanel()
-    private let newTabButton = Button()
-    private let spaceBar = StackPanel()
+    private var sidebar: Sidebar!
     private let sidebarColumn = ColumnDefinition()
     /// Where the shown browser goes in the layout.
     private let browserArea = Border()
     private var shownBrowser: CEFBrowser?
+    /// Where the toolbar takes clicks in the title bar, in pixels.
+    private var nonClientInput: InputNonClientPointerSource?
+    private var passthroughRects: [RectInt32] = []
     /// Enter in the address field opens a new tab ("New Tab"), instead of
     /// loading the selected one.
     private var opensNewTab = false
     private var isEditingAddress = false
+    private var isFullscreen = false
     private var isClosing = false
     private var canClose = false
 
@@ -47,18 +62,28 @@ final class BrowserWindow {
         let snapshot = WindowState.restoredSnapshot()
         let space = snapshot.flatMap { store.state.space($0.selectedSpaceID) } ?? store.state.spaces[0]
         state = WindowState(selectedSpaceID: space.id)
-        if let snapshot { state.lastSelection = snapshot.lastSelection }
+        if let snapshot {
+            state.lastSelection = snapshot.lastSelection
+            state.isSidebarVisible = snapshot.isSidebarVisible
+        }
+        brushes = ThemeBrushes(palette: Self.palette(of: space, platform: store.platform))
         window = Window()
         handle = try window.handle()
         window.title = "Arrow"
+        let titleBar = window.appWindow.titleBar!
+        titleBar.extendsContentIntoTitleBar = true
+        nonClientInput = try InputNonClientPointerSource.getForWindowId(window.appWindow.id)
+        sidebar = try Sidebar(window: self)
         window.content = try layout()
+        applyCaptionColors()
         try window.appWindow.resize(SizeInt32(width: 1280, height: 800))
         try window.activate()
         handleEvents()
         if let tabID = state.lastSelection[space.id] ?? space.pinned.allTabs.first?.id ?? space.today.allTabs.first?.id {
             select(tabID)
         }
-        observe { [weak self] in self?.updateSidebar() }
+        observe { [weak self] in self?.updateTheme() }
+        observe { [weak self] in self?.sidebar.update() }
         observe { [weak self] in self?.updateSelectedTab() }
     }
 
@@ -149,120 +174,172 @@ final class BrowserWindow {
         return (store.state.favorites(for: space.profileID) + space.pinned.allTabs + space.today.allTabs).map(\.id)
     }
 
+    /// Edits the address in the toolbar, for a new tab (New Tab) or the
+    /// selected one.
+    func startNewTab() {
+        editAddress(newTab: true)
+    }
+
+    /// Archives the space's today tabs (Arc's "Clear").
+    func clearToday() {
+        var cleared: [Tab] = []
+        store.update { cleared = $0.clearToday(in: state.selectedSpaceID) }
+        if !cleared.isEmpty { store.playSound(.event) }
+        for tab in cleared {
+            store.discardRuntime(tab.id)
+        }
+        if let selected = state.selectedTabID, store.state.tab(selected) == nil {
+            state.selectedTabID = nil
+        }
+    }
+
+    func toggleSidebar() {
+        state.isSidebarVisible.toggle()
+        if savesSelection { state.saveSnapshot() }
+        updateSidebarVisibility()
+    }
+
     // MARK: - Layout
 
     private func layout() throws -> UIElement {
-        let navigation = StackPanel()
-        navigation.orientation = .horizontal
-        navigation.spacing = 4
-        for button in [backButton, forwardButton, reloadButton] {
-            navigation.children.append(button)
-        }
-        addressField.placeholderText = "Search or enter address"
-        spaceTitle.fontSize = 16
-        spaceTitle.margin = Thickness(left: 8, top: 4, right: 8, bottom: 0)
-        tabList.spacing = 2
-        newTabButton.content = "+  New Tab"
-        Self.styleAsRow(newTabButton, selected: false)
-        let tabScroller = ScrollViewer()
-        tabScroller.content = tabList
-        spaceBar.orientation = .horizontal
-        spaceBar.spacing = 4
-        spaceBar.horizontalAlignment = .center
-
-        let sidebar = Grid()
-        sidebar.padding = Thickness(left: 8, top: 8, right: 8, bottom: 8)
-        sidebar.rowSpacing = 8
-        let rows: [(FrameworkElement, GridLength)] = [
-            (navigation, .auto), (addressField, .auto), (spaceTitle, .auto), (tabScroller, .star), (spaceBar, .auto),
-        ]
-        for (index, (element, height)) in rows.enumerated() {
-            let definition = RowDefinition()
-            definition.height = height
-            sidebar.rowDefinitions.append(definition)
-            try Grid.setRow(element, Int32(index))
-            sidebar.children.append(element)
-        }
-
-        let root = Grid()
-        sidebarColumn.width = .sidebar
+        brushes.styleButtons(in: root.resources)
+        root.background = brushes.background
+        root.requestedTheme = brushes.palette.isDark ? .dark : .light
+        titleRow.height = .titleBar
+        let contentRow = RowDefinition()
+        contentRow.height = .star
+        root.rowDefinitions.append(titleRow)
+        root.rowDefinitions.append(contentRow)
         let contentColumn = ColumnDefinition()
         contentColumn.width = .star
         root.columnDefinitions.append(sidebarColumn)
         root.columnDefinitions.append(contentColumn)
+
+        try layoutToolbar()
+        try Grid.setColumnSpan(toolbar, 2)
+        root.children.append(toolbar)
+        try Grid.setRow(sidebar.element, 1)
+        root.children.append(sidebar.element)
+        browserArea.background = brushes.content
+        try Grid.setRow(browserArea, 1)
         try Grid.setColumn(browserArea, 1)
-        root.children.append(sidebar)
         root.children.append(browserArea)
+        updateSidebarVisibility()
         return root
     }
 
-    private func updateSidebar() {
-        guard let space = store.state.space(state.selectedSpaceID) else { return }
-        spaceTitle.text = space.title
-        tabList.children.clear()
-        let favorites = store.state.favorites(for: space.profileID)
-        for tab in favorites + space.pinned.allTabs {
-            tabList.children.append(row(for: tab, closable: false))
+    /// The toolbar, in the title bar: the sidebar toggle over the sidebar,
+    /// navigation over the content, the address in the middle of the window.
+    private func layoutToolbar() throws {
+        for (column, width) in [(toolbarLeadingColumn, GridLength.auto), (ColumnDefinition(), .auto),
+                                (ColumnDefinition(), .star), (captionColumn, .auto)] {
+            column.width = width
+            toolbar.columnDefinitions.append(column)
         }
-        if !favorites.isEmpty || !space.pinned.isEmpty {
-            let separator = Border()
-            separator.height = 1
-            separator.margin = Thickness(left: 8, top: 6, right: 8, bottom: 6)
-            separator.background = Self.separatorBrush
-            tabList.children.append(separator)
-        }
-        tabList.children.append(newTabButton)
-        for tab in space.today.allTabs {
-            tabList.children.append(row(for: tab, closable: true))
-        }
+        sidebarButton.margin = Thickness(left: 10, top: 0, right: 0, bottom: 0)
+        sidebarButton.horizontalAlignment = .left
+        toolbar.children.append(sidebarButton)
 
-        spaceBar.children.clear()
-        for other in store.state.spaces {
-            let button = Button()
-            switch other.icon {
-            case let .emoji(emoji): button.content = emoji
-            default: button.content = String(other.title.prefix(1)).uppercased()
-            }
-            button.background = other.id == space.id ? Self.selectedBrush : Self.clearBrush
-            button.borderThickness = Thickness()
-            try? AutomationProperties.setName(button, other.title)
-            let id = other.id
-            button.click.addHandler { [weak self] _, _ in self?.selectSpace(id) }
-            spaceBar.children.append(button)
+        navigation.orientation = .horizontal
+        navigation.spacing = 8
+        navigation.verticalAlignment = .center
+        for button in [backButton, forwardButton, reloadButton] {
+            navigation.children.append(button)
         }
+        try Grid.setColumn(navigation, 1)
+        toolbar.children.append(navigation)
+
+        addressText.fontSize = 13
+        addressText.textTrimming = .characterEllipsis
+        addressButton.content = addressText
+        addressButton.height = 28
+        addressButton.maxWidth = 400
+        addressButton.padding = Thickness(left: 8, top: 0, right: 8, bottom: 0)
+        addressButton.cornerRadius = CornerRadius(6)
+        try AutomationProperties.setName(addressButton, "Address")
+        addressField.placeholderText = "Search or Enter URL..."
+        addressField.fontSize = 13
+        addressField.width = 480
+        addressField.minHeight = 0
+        addressField.height = 28
+        addressField.padding = Thickness(left: 10, top: 4, right: 6, bottom: 4)
+        addressField.visibility = .collapsed
+        let address = StackPanel()
+        address.orientation = .horizontal
+        address.spacing = 2
+        address.horizontalAlignment = .center
+        address.verticalAlignment = .center
+        for element: UIElement in [copyLinkButton, addressButton, addressField] {
+            address.children.append(element)
+        }
+        try Grid.setColumnSpan(address, 4)
+        toolbar.children.append(address)
     }
 
-    private func row(for tab: Tab, closable: Bool) -> Button {
-        let title = TextBlock()
-        title.text = store.tabs[tab.id]?.displayTitle ?? store.title(of: tab)
-        title.textTrimming = .characterEllipsis
-        title.verticalAlignment = .center
-        let content = Grid()
-        let titleColumn = ColumnDefinition()
-        titleColumn.width = .star
-        content.columnDefinitions.append(titleColumn)
-        content.children.append(title)
+    /// Shows or hides the sidebar (Toggle Sidebar, fullscreen pages).
+    private func updateSidebarVisibility() {
+        let isShown = state.isSidebarVisible && !isFullscreen
+        sidebarColumn.width = isShown ? .sidebar : .zero
+        sidebar.element.visibility = isShown ? .visible : .collapsed
+        toolbarLeadingColumn.width = state.isSidebarVisible ? .sidebar : .auto
+        navigation.margin = Thickness(left: state.isSidebarVisible ? 1 : 8, top: 0, right: 0, bottom: 0)
+        titleRow.height = isFullscreen ? .zero : .titleBar
+        toolbar.visibility = isFullscreen ? .collapsed : .visible
+        browserArea.margin = isFullscreen ? Thickness()
+            : Thickness(left: isShown ? 0 : 8, top: 0, right: 8, bottom: 8)
+        browserArea.cornerRadius = CornerRadius(isFullscreen ? 0 : Self.contentCornerRadius)
+    }
 
-        let row = Button()
-        row.content = content
-        try? AutomationProperties.setName(row, title.text)
-        Self.styleAsRow(row, selected: tab.id == state.selectedTabID)
-        let id = tab.id
-        row.click.addHandler { [weak self] _, _ in self?.select(id) }
-        if closable {
-            let closeButton = Self.iconButton(glyph: "\u{E711}", name: "Close Tab")
-            closeButton.fontSize = 10
-            closeButton.padding = Thickness(left: 6, top: 4, right: 6, bottom: 4)
-            closeButton.background = Self.clearBrush
-            closeButton.borderThickness = Thickness()
-            let closeColumn = ColumnDefinition()
-            closeColumn.width = .auto
-            content.columnDefinitions.append(closeColumn)
-            try? Grid.setColumn(closeButton, 1)
-            content.children.append(closeButton)
-            closeButton.click.addHandler { [weak self] _, _ in self?.closeTab(id) }
+    private func updateTheme() {
+        let palette = Self.palette(of: store.state.space(state.selectedSpaceID), platform: store.platform)
+        guard palette != brushes.palette else { return }
+        brushes.apply(palette)
+        root.requestedTheme = palette.isDark ? .dark : .light
+        applyCaptionColors()
+    }
+
+    private static func palette(of space: Space?, platform: any Platform) -> ThemePalette {
+        let theme = space?.theme ?? .lavender
+        return theme.palette(isDark: theme.isDark(systemIsDark: platform.isDarkAppearance))
+    }
+
+    /// The caption buttons over the gradient, in the palette's colors.
+    private func applyCaptionColors() {
+        guard let titleBar = window.appWindow.titleBar else { return }
+        let palette = brushes.palette
+        let clear = Color(a: 0, r: 0, g: 0, b: 0)
+        titleBar.buttonBackgroundColor = clear
+        titleBar.buttonInactiveBackgroundColor = clear
+        titleBar.buttonForegroundColor = Color(palette.icon)
+        titleBar.buttonInactiveForegroundColor = Color(palette.subtitle)
+        titleBar.buttonHoverForegroundColor = Color(palette.title)
+        titleBar.buttonHoverBackgroundColor = brushes.captionHover
+        titleBar.buttonPressedForegroundColor = Color(palette.title)
+        titleBar.buttonPressedBackgroundColor = brushes.captionHover
+    }
+
+    /// Makes the toolbar's controls take clicks in the title bar, which
+    /// otherwise moves the window, and leaves room for the caption buttons.
+    private func updateTitleBar() {
+        // The closed window has no title bar left.
+        guard !canClose, let scale = toolbar.xamlRoot?.rasterizationScale, scale > 0 else { return }
+        let inset = Double(window.appWindow.titleBar.rightInset) / scale
+        if captionColumn.width.value != inset {
+            captionColumn.width = GridLength(value: inset, gridUnitType: .pixel)
         }
-        return row
+        let controls: [FrameworkElement] = [sidebarButton, backButton, forwardButton, reloadButton, copyLinkButton,
+                                            addressButton, addressField]
+        let rects = isFullscreen ? [] : controls.compactMap { control -> RectInt32? in
+            guard control.visibility == .visible, control.actualWidth > 0,
+                  let origin = try? control.transformToVisual(nil).transformPoint(Point(x: 0, y: 0)) else { return nil }
+            return RectInt32(x: Int32((Double(origin.x) * scale).rounded(.down)),
+                             y: Int32((Double(origin.y) * scale).rounded(.down)),
+                             width: Int32((control.actualWidth * scale).rounded(.up)),
+                             height: Int32((control.actualHeight * scale).rounded(.up)))
+        }
+        guard rects != passthroughRects else { return }
+        passthroughRects = rects
+        try? nonClientInput?.setRegionRects(.passthrough, rects)
     }
 
     private func updateSelectedTab() {
@@ -272,6 +349,11 @@ final class BrowserWindow {
         forwardButton.isEnabled = tab?.canGoForward ?? false
         reloadButton.isEnabled = tab != nil
         let url = tab?.url ?? ""
+        let address = URLDisplay.short(url)
+        addressText.text = address.isEmpty ? "Search or Enter URL..." : address
+        addressText.foreground = address.isEmpty ? brushes.subtitle : brushes.title
+        addressButton.background = address.isEmpty ? brushes.controlFill : brushes.clear
+        copyLinkButton.isEnabled = !url.isEmpty
         if !isEditingAddress { addressField.text = url }
         show(tab?.engine as? CEFBrowser)
     }
@@ -281,10 +363,21 @@ final class BrowserWindow {
         guard browser !== shownBrowser else { return }
         shownBrowser?.hostWindow.detach()
         shownBrowser = browser
+        // The panel's own fill would fringe the browser's clipped corners.
+        browserArea.background = browser == nil ? brushes.content : brushes.clear
         guard let browser else { return }
         browser.hostWindow.attach(to: handle, frame: browserFrame)
-        // Over WinUI's own child window, which draws the sidebar.
+        layoutBrowser()
+        // Over WinUI's own child window, which draws the rest of the window.
         SetWindowPos(browser.hostWindow.handle, nil, 0, 0, 0, 0, UINT(SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE))
+    }
+
+    /// Fits the shown browser to `browserArea`, with its rounded corners.
+    private func layoutBrowser() {
+        guard let host = shownBrowser?.hostWindow else { return }
+        let scale = browserArea.xamlRoot?.rasterizationScale ?? 1
+        host.cornerRadius = isFullscreen ? 0 : Int32((Self.contentCornerRadius * scale).rounded())
+        host.setFrame(browserFrame)
     }
 
     /// `browserArea` in physical pixels.
@@ -299,22 +392,16 @@ final class BrowserWindow {
     // MARK: - Events
 
     private func handleEvents() {
+        sidebarButton.click.addHandler { [weak self] _, _ in self?.toggleSidebar() }
         backButton.click.addHandler { [weak self] _, _ in self?.selectedTab?.goBack() }
         forwardButton.click.addHandler { [weak self] _, _ in self?.selectedTab?.goForward() }
         reloadButton.click.addHandler { [weak self] _, _ in self?.selectedTab?.reload() }
-        newTabButton.click.addHandler { [weak self] _, _ in
-            guard let self else { return }
-            opensNewTab = true
-            addressField.text = ""
-            _ = try? addressField.focus(.programmatic)
+        copyLinkButton.click.addHandler { [weak self] _, _ in
+            guard let self, let url = selectedTab?.url, !url.isEmpty else { return }
+            store.platform.copyToClipboard(url)
         }
-        addressField.gotFocus.addHandler { [weak self] _, _ in self?.isEditingAddress = true }
-        addressField.lostFocus.addHandler { [weak self] _, _ in
-            guard let self else { return }
-            isEditingAddress = false
-            opensNewTab = false
-            addressField.text = selectedTab?.url ?? ""
-        }
+        addressButton.click.addHandler { [weak self] _, _ in self?.editAddress(newTab: false) }
+        addressField.lostFocus.addHandler { [weak self] _, _ in self?.endEditingAddress() }
         addressField.keyDown.addHandler { [weak self] _, event in
             guard let self, let event else { return }
             switch event.key {
@@ -335,52 +422,71 @@ final class BrowserWindow {
                 break
             }
         }
-        browserArea.sizeChanged.addHandler { [weak self] _, _ in
-            guard let self else { return }
-            shownBrowser?.hostWindow.setFrame(browserFrame)
-        }
+        browserArea.sizeChanged.addHandler { [weak self] _, _ in self?.layoutBrowser() }
+        toolbar.layoutUpdated.addHandler { [weak self] _, _ in self?.updateTitleBar() }
         window.closed.addHandler { [weak self] _, event in
             // The window closes once every browser has.
             guard let self, !canClose else { return }
             event?.handled = true
             guard !isClosing else { return }
             isClosing = true
-            store.closeAllBrowsers { [weak self] in
-                guard let self else { return }
-                canClose = true
-                try? window.close()
-                onClose?()
+            store.closeAllBrowsers {
+                // Not from within this handler, which cancels the close:
+                // the completion runs at once when no browser is open.
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    canClose = true
+                    try? window.close()
+                    onClose?()
+                }
             }
         }
     }
 
+    /// Shows the address field in place of the short address, with the
+    /// selected tab's address, or empty for a new tab.
+    private func editAddress(newTab: Bool) {
+        opensNewTab = newTab
+        isEditingAddress = true
+        addressField.text = newTab ? "" : (selectedTab?.url ?? "")
+        addressButton.visibility = .collapsed
+        addressField.visibility = .visible
+        _ = try? addressField.focus(.programmatic)
+        try? addressField.selectAll()
+    }
+
+    private func endEditingAddress() {
+        isEditingAddress = false
+        opensNewTab = false
+        addressField.text = selectedTab?.url ?? ""
+        addressField.visibility = .collapsed
+        addressButton.visibility = .visible
+    }
+
     /// Gives the keyboard to the shown browser.
     private func focusBrowser() {
-        isEditingAddress = false
-        addressField.text = selectedTab?.url ?? ""
+        endEditingAddress()
         if let shownBrowser { SetFocus(shownBrowser.hostWindow.handle) }
         shownBrowser?.setFocus(true)
     }
 
     // MARK: - Style
 
-    private static let clearBrush = SolidColorBrush(Color(a: 0, r: 0, g: 0, b: 0))
-    private static let selectedBrush = SolidColorBrush(Color(a: 0x30, r: 0x80, g: 0x80, b: 0x80))
-    private static let separatorBrush = SolidColorBrush(Color(a: 0x40, r: 0x80, g: 0x80, b: 0x80))
+    private static let contentCornerRadius = 8.0
 
-    private static func iconButton(glyph: String, name: String) -> Button {
+    private static func iconButton(_ glyph: String, name: String, size: Double = 15) -> Button {
         let button = Button()
         button.content = glyph
-        button.fontFamily = FontFamily("Segoe Fluent Icons")
+        button.fontFamily = Glyph.font
+        button.fontSize = size
+        button.width = 28
+        button.height = 28
+        button.padding = Thickness()
+        button.cornerRadius = CornerRadius(6)
+        button.verticalAlignment = .center
         try? AutomationProperties.setName(button, name)
+        try? ToolTipService.setToolTip(button, name)
         return button
-    }
-
-    private static func styleAsRow(_ button: Button, selected: Bool) {
-        button.horizontalAlignment = .stretch
-        button.horizontalContentAlignment = .stretch
-        button.background = selected ? selectedBrush : clearBrush
-        button.borderThickness = Thickness()
     }
 }
 
@@ -418,8 +524,9 @@ extension BrowserWindow: TabHost {
     func tabDidGainFocus(_ tab: WebTab) {}
 
     func tab(_ tab: WebTab, didChangeFullscreen fullscreen: Bool) {
-        // The page fills the screen: hide the sidebar.
-        sidebarColumn.width = fullscreen ? GridLength(value: 0, gridUnitType: .pixel) : .sidebar
+        // The page fills the screen: hide the toolbar and the sidebar.
+        isFullscreen = fullscreen
+        updateSidebarVisibility()
         try? window.appWindow.setPresenter(fullscreen ? .fullScreen : .default)
     }
 
@@ -432,10 +539,13 @@ extension BrowserWindow: TabHost {
     }
 }
 
-private extension GridLength {
+extension GridLength {
     static let auto = GridLength(value: 1, gridUnitType: .auto)
     static let star = GridLength(value: 1, gridUnitType: .star)
-    static let sidebar = GridLength(value: 280, gridUnitType: .pixel)
+    static let zero = GridLength(value: 0, gridUnitType: .pixel)
+    /// Arc's on Windows.
+    static let sidebar = GridLength(value: 200, gridUnitType: .pixel)
+    static let titleBar = GridLength(value: 32, gridUnitType: .pixel)
 }
 
 extension Window {

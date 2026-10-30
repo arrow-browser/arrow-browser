@@ -8,6 +8,13 @@ import WinSDK
 @MainActor
 public final class CEFHostWindow {
     public let handle: HWND
+    /// Radius of the window's corners, in pixels: the app's rounded content
+    /// panel. The browser is clipped to them.
+    public var cornerRadius: Int32 = 0 {
+        didSet {
+            if cornerRadius != oldValue { updateShape() }
+        }
+    }
 
     public init(frame: CGRect) {
         handle = CEFHostWindow.create(
@@ -34,6 +41,19 @@ public final class CEFHostWindow {
     public func setFrame(_ frame: CGRect) {
         SetWindowPos(handle, nil, Int32(frame.minX), Int32(frame.minY), Int32(frame.width), Int32(frame.height),
                      UINT(SWP_NOZORDER | SWP_NOACTIVATE))
+        updateShape()
+    }
+
+    private func updateShape() {
+        guard cornerRadius > 0 else {
+            SetWindowRgn(handle, nil, true)
+            return
+        }
+        var client = RECT()
+        GetClientRect(handle, &client)
+        // The window owns the region once it has it.
+        let region = CreateRoundRectRgn(0, 0, client.right + 1, client.bottom + 1, cornerRadius * 2, cornerRadius * 2)
+        SetWindowRgn(handle, region, true)
     }
 
     /// Where CEF creates the browser: a child of this window.
