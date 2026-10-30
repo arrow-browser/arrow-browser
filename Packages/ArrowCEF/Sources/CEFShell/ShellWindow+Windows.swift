@@ -55,6 +55,7 @@ final class ShellWindow {
 }
 private func shellWindowProcedure(_ window: HWND?, _ message: UINT, _ wParam: WPARAM, _ lParam: LPARAM) -> LRESULT {
     // Window messages are dispatched on the main thread.
+    nonisolated(unsafe) let window = window
     let handled: Bool = MainActor.assumeIsolated {
         guard let window, let shell = ShellWindow.windows[window] else { return false }
         switch Int32(message) {
