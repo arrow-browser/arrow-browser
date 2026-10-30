@@ -95,7 +95,7 @@ Sparkle does.
 | `Sources/Arrow/Views` | SwiftUI views: sidebar, content, command bar, library, settings… |
 | `Sources/Arrow/Services` | Downloads, favicons, extensions, import, updates, Arrow Cloud client |
 | `Sources/ArrowHelper` | Chromium sub-process entry point (renderer, GPU…) |
-| `Packages/ArrowKit` | Engine-independent model: spaces, tabs, themes, URL parsing, history, boosts; `ArrowCore`, the app state shared by every platform |
+| `Packages/ArrowKit` | Engine-independent model: spaces, tabs, themes, URL parsing, history, boosts; `ArrowCore`, the app state shared by every platform; `ArrowEngine`, the protocols it uses to drive the engine |
 | `server/` | Go server replacing Arc's cloud services |
 | `docs/` | [Architecture](docs/ARCHITECTURE.md), [feature parity](docs/FEATURES.md), [Arc services](docs/ARC_SERVICES.md), [portability](docs/PORTABILITY.md) |
 
