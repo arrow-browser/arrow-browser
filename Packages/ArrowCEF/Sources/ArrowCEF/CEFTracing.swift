@@ -32,7 +32,7 @@ public final class CEFTracing {
             }
         }
         endCallback = callback
-        if withCefString(url.path, { cef_end_tracing($0, callback.retained()) }) == 0 {
+        if withCefString(url.cefPath, { cef_end_tracing($0, callback.retained()) }) == 0 {
             isRecording = false
             onFinish = nil
         }

@@ -34,8 +34,10 @@ layouts match the version given to `cef_api_hash()` at startup.
   - callback arguments carry a reference that is released;
   - returned structs are adopted;
   - arguments passed to CEF transfer a reference.
-- **Threads**. The CEF UI thread is the main thread on macOS, so
-  callbacks hop into `MainActor.assumeIsolated`.
+- **Threads**. The CEF UI thread is the main thread, which runs
+  `cef_run_message_loop()`, so callbacks hop into `MainActor.assumeIsolated`.
+  On Windows and Linux that loop does not run Foundation's, so a repeating CEF
+  task runs the main dispatch queue (main actor jobs, `DispatchQueue.main`).
 - **Application**. `ArrowApplication` implements `CrAppProtocol`,
   `CrAppControlProtocol` and `CefAppProtocol`; `cef_run_message_loop()` drives
   `NSApplication`. `terminate:` closes every browser first, then quits the loop
@@ -63,6 +65,13 @@ loading and switching tabs never orphans a browser.
 Closing a tab calls `close_browser`. `do_close` returns 1, because the parent
 is our own window and CEF must not close it; then the host view is torn down
 and `on_before_close` completes the close.
+
+On Windows and Linux, `CEFHostWindow` plays the part of `CEFHostView`: a child
+`HWND` or X11 window, parked in a hidden window until the app attaches it to
+its own (`attach(to:frame:)`) and keeps it sized (`setFrame(_:)`). On Linux,
+`do_close` returns 0: CEF then closes its own X11 window, never the app's.
+Linux browsers use X11 (XWayland in a Wayland session), as Chromium cannot
+embed its windows in another Wayland client.
 
 ## Model
 

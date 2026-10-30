@@ -1,4 +1,5 @@
 import CEF
+import Foundation
 
 // Conversions between Swift strings and CEF UTF-16 strings.
 
@@ -67,4 +68,16 @@ public func cefStringList(_ list: cef_string_list_t?) -> [String] {
         }
     }
     return values
+}
+
+extension URL {
+    /// The path to give CEF: with native separators on Windows, where `path`
+    /// is a URL path (`/C:/…`).
+    public var cefPath: String {
+        #if os(Windows)
+        withUnsafeFileSystemRepresentation { String(cString: $0!) }
+        #else
+        path
+        #endif
+    }
 }

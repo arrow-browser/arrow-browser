@@ -43,6 +43,17 @@ URLs passed on the command line open as tabs:
 `Arrow.app/Contents/MacOS/Arrow https://example.com`. Switches (`--flag`) and
 Cocoa defaults (`-AppleLanguages "(en-US)"`) are not opened.
 
+On Windows and Linux, only the shared packages build for now (see
+[portability](docs/PORTABILITY.md)): `swift test` in `Packages/ArrowKit`, and
+`cef-shell`, a window with one browser:
+
+```sh
+./scripts/fetch-cef.sh                          # CEF for this machine
+cd Packages/ArrowCEF && swift build --product cef-shell
+../../scripts/stage-cef.sh "$(swift build --show-bin-path)"
+"$(swift build --show-bin-path)/cef-shell"
+```
+
 ### Server (optional)
 
 ```sh
@@ -92,7 +103,7 @@ Sparkle does.
 | `Sources/Arrow/Views` | SwiftUI views: sidebar, content, command bar, library, settings… |
 | `Sources/Arrow/Services` | macOS services: Keychain, global shortcut, import from other browsers, updates, media library |
 | `Sources/ArrowHelper` | Chromium sub-process entry point (renderer, GPU…) |
-| `Packages/ArrowCEF` | Swift layer over the CEF C API (runtime, browsers, handlers, ref counting) and the `CEF` Clang module exposing its headers |
+| `Packages/ArrowCEF` | Swift layer over the CEF C API (runtime, browsers, handlers, ref counting) and the `CEF` Clang module exposing its headers; `cef-shell`, a window with one browser on Windows and Linux |
 | `Packages/ArrowKit` | Engine-independent model: spaces, tabs, themes, URL parsing, history, boosts; `ArrowCore`, the app state shared by every platform; `ArrowEngine`, the protocols it uses to drive the engine |
 | `server/` | Go server replacing Arc's cloud services |
 | `docs/` | [Architecture](docs/ARCHITECTURE.md), [feature parity](docs/FEATURES.md), [Arc services](docs/ARC_SERVICES.md), [portability](docs/PORTABILITY.md) |

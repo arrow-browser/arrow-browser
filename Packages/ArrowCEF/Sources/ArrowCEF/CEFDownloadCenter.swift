@@ -32,7 +32,7 @@ public final class CEFDownloadCenter: @unchecked Sendable {
                     }
                     let destination = center.delegate?.downloadCenter(destinationFor: name)
                         ?? (url: FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0].appendingPathComponent(name), ask: false)
-                    withCefString(destination.url.path) { path in
+                    withCefString(destination.url.cefPath) { path in
                         callback.pointer.pointee.cont?(callback.pointer, path, destination.ask ? 1 : 0)
                     }
                 }

@@ -1,63 +1,23 @@
-import AppKit
 import ArrowEngine
 import CEF
-
-/// NSView hosting a Chromium browser view. Keeps CEF's child view sized to
-/// its bounds and clips it (rounded corners of the content panel).
-public final class CEFHostView: NSView {
-    public override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        wantsLayer = true
-        layer?.masksToBounds = true
-    }
-
-    @available(*, unavailable)
-    public required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-    public override var isFlipped: Bool { true }
-
-    public override func resizeSubviews(withOldSize oldSize: NSSize) {
-        super.resizeSubviews(withOldSize: oldSize)
-        for subview in subviews where subview.frame != bounds {
-            subview.frame = bounds
-        }
-    }
-}
-
-/// Invisible window holding browser views that are not displayed.
-///
-/// Chromium needs its view to belong to a window when the browser is created
-/// and while it renders in the background (tabs opened in the background,
-/// switched-away tabs). Views are parked here instead of being orphaned.
-@MainActor
-public enum CEFParkingLot {
-    private static let window: NSWindow = {
-        let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: 1280, height: 800),
-                              styleMask: [.borderless], backing: .buffered, defer: false)
-        window.isReleasedWhenClosed = false
-        window.contentView = NSView(frame: window.contentRect(forFrameRect: window.frame))
-        return window
-    }()
-
-    public static func park(_ view: NSView) {
-        guard let contentView = window.contentView, view.superview !== contentView else { return }
-        let size = view.frame.size == .zero ? contentView.bounds.size : view.frame.size
-        view.removeFromSuperview()
-        view.frame = NSRect(origin: .zero, size: size)
-        contentView.addSubview(view)
-    }
-
-    public static func isParked(_ view: NSView) -> Bool {
-        view.superview === window.contentView
-    }
-}
+#if os(macOS)
+import AppKit
+#endif
+import Foundation
 
 /// A Chromium browser (one web page) and its CEF handlers.
 ///
 /// Created lazily: `create(url:)` instantiates the native browser inside
-/// `hostView`. All public API must be used on the main thread.
+/// its native host (`hostView` on macOS, `hostWindow` on Windows and
+/// Linux). All public API must be used on the main thread.
 public final class CEFBrowser: @unchecked Sendable {
+    #if os(macOS)
     public let hostView: CEFHostView
+    @MainActor private var nativeHost: CEFHostView { hostView }
+    #else
+    public let hostWindow: CEFHostWindow
+    @MainActor private var nativeHost: CEFHostWindow { hostWindow }
+    #endif
     public let requestContext: CEFRequestContext
     @MainActor public weak var delegate: (any BrowserEngineDelegate)?
 
@@ -87,7 +47,11 @@ public final class CEFBrowser: @unchecked Sendable {
     @MainActor
     public init(requestContext: CEFRequestContext, frame: CGRect = CGRect(x: 0, y: 0, width: 800, height: 600)) {
         self.requestContext = requestContext
+        #if os(macOS)
         hostView = CEFHostView(frame: frame)
+        #else
+        hostWindow = CEFHostWindow(frame: frame)
+        #endif
         buildHandlers()
     }
 
@@ -99,7 +63,7 @@ public final class CEFBrowser: @unchecked Sendable {
     @MainActor
     public func create(url: String) {
         guard browser == nil, !isPendingPopup, !isClosed else { return }
-        var windowInfo = makeWindowInfo()
+        var windowInfo = nativeHost.windowInfo()
         var settings = cef_browser_settings_t()
         settings.size = MemoryLayout<cef_browser_settings_t>.size
         let created = withCefString(url) { url in
@@ -112,17 +76,6 @@ public final class CEFBrowser: @unchecked Sendable {
         } else {
             cefRelease(created)
         }
-    }
-
-    @MainActor
-    private func makeWindowInfo() -> cef_window_info_t {
-        if hostView.window == nil { CEFParkingLot.park(hostView) }
-        var windowInfo = cef_window_info_t()
-        windowInfo.size = MemoryLayout<cef_window_info_t>.size
-        windowInfo.parent_view = Unmanaged.passUnretained(hostView).toOpaque()
-        windowInfo.bounds = cef_rect_t(x: 0, y: 0, width: Int32(hostView.bounds.width), height: Int32(hostView.bounds.height))
-        windowInfo.runtime_style = CEF_RUNTIME_STYLE_ALLOY
-        return windowInfo
     }
 
     @MainActor
@@ -151,18 +104,11 @@ public final class CEFBrowser: @unchecked Sendable {
     }
 
     @MainActor
-    private func tearDownView() {
-        for subview in hostView.subviews {
-            subview.removeFromSuperview()
-        }
-    }
-
-    @MainActor
     private func finishClose() {
         defer { Self.closing[ObjectIdentifier(self)] = nil }
         guard !isClosed else { return }
         isClosed = true
-        if CEFParkingLot.isParked(hostView) { hostView.removeFromSuperview() }
+        nativeHost.leaveParkingLot()
         devToolsRegistration = nil
         browser = nil
         pendingDevToolsResults.removeAll()
@@ -260,10 +206,7 @@ public final class CEFBrowser: @unchecked Sendable {
     public func showDevTools(inspectAt point: CGPoint?, panel: String?) {
         guard let host else { return }
         let client = panel.map { CEFDevToolsPanel.client(showing: $0) }
-        var windowInfo = cef_window_info_t()
-        windowInfo.size = MemoryLayout<cef_window_info_t>.size
-        windowInfo.runtime_style = CEF_RUNTIME_STYLE_ALLOY
-        windowInfo.bounds = cef_rect_t(x: 120, y: 120, width: 1000, height: 720)
+        var windowInfo = cef_window_info_t.topLevel(bounds: cef_rect_t(x: 120, y: 120, width: 1000, height: 720))
         var settings = cef_browser_settings_t()
         settings.size = MemoryLayout<cef_browser_settings_t>.size
         if let point {
@@ -420,10 +363,7 @@ public final class CEFBrowser: @unchecked Sendable {
                                                               userGesture: userGesture != 0,
                                                               features: popupFeatures) as? CEFBrowser
                     else { return 1 }
-                    let info = popup.makeWindowInfo()
-                    popupWindowInfo.pointee.parent_view = info.parent_view
-                    popupWindowInfo.pointee.bounds = info.bounds
-                    popupWindowInfo.pointee.runtime_style = CEF_RUNTIME_STYLE_ALLOY
+                    popupWindowInfo.pointee.adoptHost(of: popup.nativeHost.windowInfo())
                     popupClient.pointee = popup.client.retained()
                     popup.isPendingPopup = true
                     return 0
@@ -447,16 +387,23 @@ public final class CEFBrowser: @unchecked Sendable {
             }
             handler.do_close = { handler, browser in
                 defer { cefRelease(browser) }
-                // Never let CEF close the window hosting the browser (returning
-                // 0 sends performClose: to it).
                 guard let owner = CEFBrowser.owner(handler) else { return 1 }
                 MainActor.assumeIsolated {
                     owner.delegate?.browserWillClose(owner)
+                    #if !os(Linux)
                     // The browser is embedded in our own window: never let CEF
                     // close it. Destroying the browser view completes the close.
-                    DispatchQueue.main.async { owner.tearDownView() }
+                    DispatchQueue.main.async { owner.nativeHost.destroyBrowserView() }
+                    #endif
                 }
+                #if os(Linux)
+                // CEF closes its own X11 window, not the app's.
+                return 0
+                #else
+                // Returning 0 would close the window hosting the browser
+                // (performClose: on macOS, WM_CLOSE on Windows).
                 return 1
+                #endif
             }
             handler.on_before_close = { handler, browser in
                 defer { cefRelease(browser) }
@@ -684,9 +631,9 @@ public final class CEFBrowser: @unchecked Sendable {
                 }
                 guard let owner = CEFBrowser.owner(handler), let callback = CefRef(adopting: callback) else { return 0 }
                 var kinds = Set<PermissionRequest.Kind>()
-                if requested & CEF_MEDIA_PERMISSION_DEVICE_AUDIO_CAPTURE.rawValue != 0 { kinds.insert(.microphone) }
-                if requested & CEF_MEDIA_PERMISSION_DEVICE_VIDEO_CAPTURE.rawValue != 0 { kinds.insert(.camera) }
-                if requested & (CEF_MEDIA_PERMISSION_DESKTOP_AUDIO_CAPTURE.rawValue | CEF_MEDIA_PERMISSION_DESKTOP_VIDEO_CAPTURE.rawValue) != 0 {
+                if requested & UInt32(CEF_MEDIA_PERMISSION_DEVICE_AUDIO_CAPTURE.rawValue) != 0 { kinds.insert(.microphone) }
+                if requested & UInt32(CEF_MEDIA_PERMISSION_DEVICE_VIDEO_CAPTURE.rawValue) != 0 { kinds.insert(.camera) }
+                if requested & UInt32(CEF_MEDIA_PERMISSION_DESKTOP_AUDIO_CAPTURE.rawValue | CEF_MEDIA_PERMISSION_DESKTOP_VIDEO_CAPTURE.rawValue) != 0 {
                     kinds.insert(.screenCapture)
                 }
                 let request = PermissionRequest(origin: String(cef: origin), kinds: kinds)
@@ -747,12 +694,12 @@ public final class CEFBrowser: @unchecked Sendable {
 
     private static func permissionKinds(_ mask: UInt32) -> Set<PermissionRequest.Kind> {
         var kinds = Set<PermissionRequest.Kind>()
-        if mask & CEF_PERMISSION_TYPE_GEOLOCATION.rawValue != 0 { kinds.insert(.location) }
-        if mask & CEF_PERMISSION_TYPE_NOTIFICATIONS.rawValue != 0 { kinds.insert(.notifications) }
-        if mask & CEF_PERMISSION_TYPE_CLIPBOARD.rawValue != 0 { kinds.insert(.clipboard) }
-        if mask & CEF_PERMISSION_TYPE_CAMERA_STREAM.rawValue != 0 { kinds.insert(.camera) }
-        if mask & CEF_PERMISSION_TYPE_MIC_STREAM.rawValue != 0 { kinds.insert(.microphone) }
-        if mask & CEF_PERMISSION_TYPE_MIDI_SYSEX.rawValue != 0 { kinds.insert(.midi) }
+        if mask & UInt32(CEF_PERMISSION_TYPE_GEOLOCATION.rawValue) != 0 { kinds.insert(.location) }
+        if mask & UInt32(CEF_PERMISSION_TYPE_NOTIFICATIONS.rawValue) != 0 { kinds.insert(.notifications) }
+        if mask & UInt32(CEF_PERMISSION_TYPE_CLIPBOARD.rawValue) != 0 { kinds.insert(.clipboard) }
+        if mask & UInt32(CEF_PERMISSION_TYPE_CAMERA_STREAM.rawValue) != 0 { kinds.insert(.camera) }
+        if mask & UInt32(CEF_PERMISSION_TYPE_MIC_STREAM.rawValue) != 0 { kinds.insert(.microphone) }
+        if mask & UInt32(CEF_PERMISSION_TYPE_MIDI_SYSEX.rawValue) != 0 { kinds.insert(.midi) }
         if kinds.isEmpty { kinds.insert(.other) }
         return kinds
     }
@@ -781,7 +728,11 @@ private final class CEFImageRequest: @unchecked Sendable {
         guard let image, image.pointee.is_empty?(image) == 0 else { return nil }
         var width: Int32 = 0
         var height: Int32 = 0
+        #if os(macOS)
         let scale = Float(NSScreen.main?.backingScaleFactor ?? 2)
+        #else
+        let scale: Float = 2
+        #endif
         guard let binary = CefRef(adopting: image.pointee.get_as_png?(image, scale, 1, &width, &height)) else { return nil }
         let size = binary.pointer.pointee.get_size?(binary.pointer) ?? 0
         guard size > 0, let bytes = binary.pointer.pointee.get_raw_data?(binary.pointer) else { return nil }

@@ -6,9 +6,18 @@
 
 #define CEF_API_VERSION 15600
 
+#if defined(_WIN32)
+// windows.h belongs to none of Swift's WinSDK modules, so the types CEF's
+// Windows headers use (HWND, HCURSOR, MSG…) are only visible here through a
+// module that includes it, such as WinSock2's.
+#include <WinSock2.h>
+#endif
+
 #include "include/cef_api_hash.h"
 #include "include/cef_version_info.h"
+#if defined(__APPLE__)
 #include "include/cef_sandbox_mac.h"
+#endif
 #include "include/capi/cef_app_capi.h"
 #include "include/capi/cef_browser_capi.h"
 #include "include/capi/cef_browser_process_handler_capi.h"

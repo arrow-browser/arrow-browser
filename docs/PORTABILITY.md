@@ -99,15 +99,30 @@ At `e4de7af`, Arrow is about 19,600 lines of Swift:
 - The bindings move to `Packages/ArrowCEF`: `ArrowCEF` and the `CEF` Clang
   module, used by the macOS app. The package finds the CEF headers in
   `Vendor/cef`, or in `CEF_ROOT`.
-- Host browsers in the native window handle of each platform: `NSView`,
-  `HWND`, X11 or Wayland window.
-- Process model: Windows and Linux have no helper app bundles. Subprocesses
-  relaunch the main executable or a single helper executable
-  (`browser_subprocess_path`).
-- Sandbox: `cef_sandbox` on Windows (a static library linked into the
-  executable), Chromium's sandbox on Linux.
-- `scripts/fetch-cef.sh` fetches the Windows and Linux distributions (x64 and
-  arm64).
+- Each platform hosts browsers in its own windows: `CEFHostView` (an
+  `NSView`) on macOS, `CEFHostWindow` on Windows (a child `HWND`) and Linux
+  (an X11 window). See [Architecture](ARCHITECTURE.md#browsers-in-swiftui).
+- Linux uses X11, through XWayland in a Wayland session: Chromium cannot embed
+  its windows in another Wayland client.
+- Process model: Windows and Linux have no helper apps. Chromium's
+  subprocesses relaunch the main executable, which calls
+  `CEFRuntime.executeProcess()` first.
+- CEF's message loop does not run Foundation's on Windows and Linux: a
+  repeating CEF task runs the main queue, so main actor jobs and
+  `DispatchQueue.main` work as on macOS.
+- Sandbox:
+  - Linux: Chromium's sandbox, through the setuid `chrome-sandbox` helper
+    where unprivileged user namespaces are not available. CI runs the browser
+    sandboxed.
+  - Windows: CEF no longer ships `cef_sandbox.lib`. A sandboxed app is a DLL
+    loaded by CEF's `bootstrap.exe`, which hands the sandbox to
+    `CEFRuntime.initialize(sandboxInfo:)`; without it, subprocesses run
+    unsandboxed. Packaging the Windows app that way is part of phase 5.
+- `scripts/fetch-cef.sh` fetches the distribution of the machine (macOS,
+  Windows or Linux, x64 or arm64); `scripts/stage-cef.sh` installs the CEF
+  runtime next to a Windows or Linux executable.
+- `cef-shell`, in `Packages/ArrowCEF`, opens a window with one browser. CI
+  builds it and runs it on Linux (under Xvfb, sandboxed) and on Windows.
 
 Done when a window with one CEF browser runs on Windows and Linux.
 
@@ -122,6 +137,8 @@ Done when a window with one CEF browser runs on Windows and Linux.
 - Command bar: open Windows file paths (`C:\…`, `\\server\share`) typed in
   it, as `URLInput` does for `/…` and `~/…`.
 - Build with SwiftPM (CMake where SwiftPM falls short), ship an installer.
+- Sandbox: build the app as a DLL loaded by CEF's `bootstrap.exe`, renamed
+  after the app, which passes the sandbox to `CEFRuntime.initialize`.
 - Updates reuse ArrowKit's appcast parser and EdDSA check; only the install
   step is Windows-specific.
 
@@ -170,5 +187,6 @@ own UI and stay there.
   its Swift bindings are less mature than swift-winrt.
 - **Order of the Windows and Linux apps.** Windows first is proposed: larger
   audience, and the swift-winrt path is proven by Arc.
-- **Wayland.** How well CEF's windowed mode works under Wayland, to check in
-  phase 4.
+- **Wayland.** CEF's windowed mode cannot embed browsers in a Wayland app,
+  so the Linux app runs on X11 (XWayland). Native Wayland would mean CEF's
+  off-screen rendering, drawn by the app.
