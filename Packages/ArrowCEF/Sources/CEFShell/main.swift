@@ -5,6 +5,9 @@
 //                            status 0, or 1 if it does not load (CI)
 #if os(Windows) || os(Linux)
 import ArrowCEF
+#if os(Windows)
+import CRT
+#endif
 import Foundation
 
 MainActor.assumeIsolated {

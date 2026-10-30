@@ -1,6 +1,9 @@
 #if os(Windows) || os(Linux)
 import ArrowCEF
 import ArrowEngine
+#if os(Windows)
+import CRT
+#endif
 import Foundation
 
 /// A window showing one browser, which quits when the window is closed.
