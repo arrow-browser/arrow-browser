@@ -5,10 +5,8 @@ import WinSDK
 
 /// ArrowCore's platform services on Windows.
 final class WindowsPlatform: Platform {
-    // Saving them in the Credential Manager comes next (docs/PORTABILITY.md):
-    // until then they last for the session and are never written to disk.
-    let credentials: any CredentialStore = SessionCredentials()
-    let cloudSecrets: any SecretStore = SessionSecrets()
+    let credentials: any CredentialStore = WindowsCredentials()
+    let cloudSecrets: any SecretStore = WindowsSecrets()
 
     var appVersion: String { ArrowApp.version }
 
@@ -90,48 +88,6 @@ final class WindowsPlatform: Platform {
     func apply(_ settings: ArrowSettings, previous: ArrowSettings) {
         // No global shortcut or menu shortcuts on Windows yet.
     }
-}
-
-/// Logins and cards kept in memory for the session.
-final class SessionCredentials: CredentialStore {
-    private var passwords: [String: (login: SavedLogin, password: String)] = [:]
-    private var savedCards: [PaymentCard] = []
-
-    func logins(for host: String?) -> [SavedLogin] {
-        passwords.values.map(\.login).filter { host == nil || $0.host == host }
-    }
-
-    func password(host: String, username: String) -> String? {
-        passwords[host + "\n" + username]?.password
-    }
-
-    func savePassword(_ password: String, host: String, username: String) {
-        passwords[host + "\n" + username] = (SavedLogin(host: host, username: username, modified: Date()), password)
-    }
-
-    func deletePassword(host: String, username: String) {
-        passwords[host + "\n" + username] = nil
-    }
-
-    func cards() -> [PaymentCard] { savedCards }
-
-    func save(_ card: PaymentCard) {
-        savedCards.removeAll { $0.id == card.id }
-        savedCards.append(card)
-    }
-
-    func delete(_ card: PaymentCard) {
-        savedCards.removeAll { $0.id == card.id }
-    }
-}
-
-/// Arrow Cloud's secrets kept in memory for the session.
-final class SessionSecrets: SecretStore {
-    private var secrets: [String: String] = [:]
-
-    func secret(for account: String) -> String? { secrets[account] }
-
-    func setSecret(_ value: String?, for account: String) { secrets[account] = value }
 }
 
 /// HKEY_CURRENT_USER, a macro Swift does not import.

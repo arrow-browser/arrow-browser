@@ -7,8 +7,8 @@ on ArrowCore and ArrowCEF ([portability](../docs/PORTABILITY.md), phase 5).
 For now its window has a sidebar (back, forward, reload, the address field,
 the space's favorites, pinned and today tabs, New Tab, the space switcher)
 next to the selected tab's page. Tabs and the selection are saved like on
-macOS. Saved logins, cards and Arrow Cloud's secrets only last for the
-session until the app stores them in the Credential Manager.
+macOS; saved logins, payment cards and Arrow Cloud's secrets go to the
+Credential Manager.
 
 ## Requirements
 
@@ -48,6 +48,9 @@ powershell -File stage.ps1 $bin               # Arrow.exe and its runtime, next 
   hands it the sandbox of Chromium's subprocesses. `stage.ps1 -Console`
   installs the console variant, which keeps the app's output:
   `Arrow.exe --smoke` loads the page, prints its title and quits (CI).
+- `swift test` runs once the app is staged (its tests load `libcef.dll`), in
+  a desktop session: the Credential Manager refuses writes in sessions
+  without credentials, such as SSH with a key.
 - Profiles live in `%LOCALAPPDATA%\Arrow`, Arrow's own data (sidebar,
   settings, history) in its `State` folder. `--smoke` uses a new profile in
   `%TEMP%\arrow-smoke`.
@@ -56,6 +59,7 @@ powershell -File stage.ps1 $bin               # Arrow.exe and its runtime, next 
 
 | Path | Contents |
 |---|---|
-| `Sources/ArrowWindows` | The app: entry points, the browser window, platform services (`WindowsPlatform`), CEF's message pump |
+| `Sources/ArrowWindows` | The app: entry points, the browser window, platform services (`WindowsPlatform`, the Credential Manager), CEF's message pump |
+| `Tests/ArrowWindowsTests` | Tests of the Windows-specific code |
 | `Sources/WinUI/Application` | `XamlApplication`, a WinUI application written in Swift (adapted from swift-winui) |
 | `Sources/CWinRT`, `Sources/*/Generated` | Generated projections |
