@@ -88,7 +88,8 @@ jobs:
           chown root:root "$bin/chrome-sandbox"
           chmod 4755 "$bin/chrome-sandbox"
           useradd --create-home shell
-          runuser -u shell -- xvfb-run -a "$bin/cef-shell" --smoke
+          runuser -u shell -- xvfb-run -a "$bin/cef-shell" --smoke | tee output.txt
+          grep -q "sandbox: on" output.txt
 
   arrowcef-windows:
     name: ArrowCEF on Windows
@@ -120,3 +121,16 @@ jobs:
           ../../scripts/stage-cef.sh "$bin"
           cp Sources/CEFShell/cef-shell.exe.manifest "$bin/"
           "$bin/cef-shell.exe" --smoke
+      - name: Build cef-shell as a DLL for CEF's bootstrap
+        working-directory: Packages/ArrowCEF
+        run: swift build --product cef-shell-sandboxed
+      - name: Open a browser window, sandboxed
+        timeout-minutes: 5
+        working-directory: Packages/ArrowCEF
+        shell: bash
+        run: |
+          bin="$(cygpath -u "$(swift build --show-bin-path)")"
+          # CEF's bootstrap loads the DLL named after it and sandboxes it.
+          cp ../../Vendor/cef/Release/bootstrapc.exe "$bin/cef-shell-sandboxed.exe"
+          "$bin/cef-shell-sandboxed.exe" --smoke | tee output.txt
+          grep -q "sandbox: on" output.txt
