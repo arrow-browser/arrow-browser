@@ -1,3 +1,4 @@
+import ArrowCore
 import ArrowKit
 import SwiftUI
 import UniformTypeIdentifiers
@@ -294,7 +295,7 @@ struct WebContentView: NSViewRepresentable {
     }
 
     func updateNSView(_ view: WebContainerView, context: Context) {
-        view.attach(tab.engine?.hostView)
+        view.attach((tab.engine as? CEFBrowser)?.hostView)
     }
 
     static func dismantleNSView(_ view: WebContainerView, coordinator: ()) {
@@ -488,7 +489,7 @@ private struct LoadFailureView: View {
 }
 
 private struct CrashView: View {
-    let status: CEFTerminationStatus
+    let status: TerminationStatus
     let reload: () -> Void
 
     var body: some View {

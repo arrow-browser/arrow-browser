@@ -1,4 +1,5 @@
 import AppKit
+import ArrowCore
 import ArrowKit
 import Observation
 
@@ -48,11 +49,13 @@ final class BrowserStore {
 
     /// Live tabs by tab ID.
     @ObservationIgnored private(set) var tabs: [UUID: WebTab] = [:]
-    @ObservationIgnored private var requestContexts: [UUID: CEFRequestContext] = [:]
+    @ObservationIgnored private var requestContexts: [UUID: any BrowsingContext] = [:]
     @ObservationIgnored private var pendingSaves: Set<StoreFile> = []
     @ObservationIgnored private var saveTask: Task<Void, Never>?
     @ObservationIgnored private var maintenanceTimer: Timer?
 
+    /// The rendering engine (Chromium).
+    let engine: any EngineRuntime
     /// Directory of Arrow's own data (Chromium uses the parent directory).
     let dataDirectory: URL
     /// Incognito stores keep everything in memory and use an off-the-record
@@ -63,7 +66,9 @@ final class BrowserStore {
         case sidebar, settings, history, boosts, notes, easels
     }
 
-    init(dataDirectory: URL = CEFRuntime.shared.rootCachePath.appendingPathComponent("State", isDirectory: true)) {
+    init(engine: any EngineRuntime, dataDirectory: URL? = nil) {
+        self.engine = engine
+        let dataDirectory = dataDirectory ?? engine.rootCachePath.appendingPathComponent("State", isDirectory: true)
         self.dataDirectory = dataDirectory
         isIncognito = false
         let loaded = JSONStore<BrowserState>(url: dataDirectory.appendingPathComponent("Sidebar.json")).load()
@@ -77,14 +82,15 @@ final class BrowserStore {
         boosts = JSONStore<[Boost]>(url: dataDirectory.appendingPathComponent("Boosts.json")).load() ?? []
         notes = JSONStore<[Note]>(url: dataDirectory.appendingPathComponent("Notes.json")).load() ?? []
         easels = JSONStore<[Easel]>(url: dataDirectory.appendingPathComponent("Easels.json")).load() ?? []
-        downloads = DownloadManager()
+        downloads = DownloadManager(center: engine.downloads)
         downloads.store = self
         downloads.activate()
         startMaintenance()
     }
 
     /// Ephemeral store of an incognito window.
-    init(incognitoWith settings: ArrowSettings, downloads: DownloadManager) {
+    init(incognitoWith settings: ArrowSettings, downloads: DownloadManager, engine: any EngineRuntime) {
+        self.engine = engine
         dataDirectory = FileManager.default.temporaryDirectory
         isIncognito = true
         let profile = Profile(name: "Incognito", isDefault: true)
@@ -174,14 +180,14 @@ final class BrowserStore {
     // MARK: - Profiles
 
     /// Chromium request context of a profile (cookies, storage…).
-    func requestContext(for profileID: UUID) -> CEFRequestContext {
+    func requestContext(for profileID: UUID) -> any BrowsingContext {
         if let context = requestContexts[profileID] { return context }
-        let context: CEFRequestContext = if isIncognito {
-            .incognito()
+        let context = if isIncognito {
+            engine.incognitoContext()
         } else if state.profile(profileID)?.isDefault ?? true {
-            .global()
+            engine.defaultContext()
         } else {
-            .persistent(path: CEFRuntime.shared.rootCachePath
+            engine.persistentContext(path: engine.rootCachePath
                 .appendingPathComponent("Profiles", isDirectory: true)
                 .appendingPathComponent(profileID.uuidString, isDirectory: true))
         }
@@ -197,7 +203,7 @@ final class BrowserStore {
         if history { clearHistory(since: date) }
         let contexts = state.profiles.map { requestContext(for: $0.id) }
         for context in contexts {
-            if cookies { context.deleteCookies() }
+            if cookies { context.deleteCookies(url: nil) }
             if cache { context.clearHTTPCache() }
         }
     }

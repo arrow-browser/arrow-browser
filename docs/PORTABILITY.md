@@ -77,6 +77,9 @@ At `e4de7af`, Arrow is about 19,600 lines of Swift:
   [Platform services](#platform-services)).
 - Draw the engine boundary: the model and the views talk to a browser
   protocol, which `CEFBrowser` implements.
+  - Done: `BrowserEngine`, `BrowsingContext` and `EngineRuntime` in
+    `ArrowCore` (see [Architecture](ARCHITECTURE.md#engine-boundary)), with
+    engine-neutral page events, downloads, request filtering and Cast.
 - The macOS app builds on `ArrowCore`, with no change in behavior.
 
 Done when `ArrowCore` is tested on Linux and Windows in CI and the macOS app

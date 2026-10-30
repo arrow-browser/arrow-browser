@@ -4,7 +4,7 @@ import SwiftUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    let store = BrowserStore()
+    let store = BrowserStore(engine: CEFRuntime.shared)
     private(set) var windowControllers: [BrowserWindowController] = []
     private var incognitoStores: [ObjectIdentifier: BrowserStore] = [:]
     private var littleArrowWindows: [LittleArrowWindowController] = []
@@ -176,7 +176,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func newIncognitoWindow(_ sender: Any?) {
-        let incognito = BrowserStore(incognitoWith: store.settings, downloads: store.downloads)
+        let incognito = BrowserStore(incognitoWith: store.settings, downloads: store.downloads, engine: store.engine)
         incognitoStores[ObjectIdentifier(incognito)] = incognito
         let controller = makeWindow(store: incognito)
         controller.showCommandBar(mode: .newTab)

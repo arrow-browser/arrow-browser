@@ -515,7 +515,7 @@ private struct SitePermissionsView: View {
     ]
 
     var body: some View {
-        let context = store.requestContext(for: tab.profileID)
+        let context = store.cefContext(for: tab.profileID)
         VStack(alignment: .leading, spacing: 6) {
             ForEach(Self.rows, id: \.0) { title, symbol, type in
                 HStack {

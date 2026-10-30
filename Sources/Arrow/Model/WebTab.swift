@@ -1,4 +1,5 @@
 import AppKit
+import ArrowCore
 import ArrowKit
 import Observation
 
@@ -6,7 +7,7 @@ import Observation
 @MainActor
 protocol TabHost: AnyObject {
     func tab(_ tab: WebTab, openURL url: String, inBackground: Bool)
-    func tab(_ tab: WebTab, createPopupFor url: String, features: CEFPopupFeatures) -> CEFBrowser?
+    func tab(_ tab: WebTab, createPopupFor url: String, features: PopupFeatures) -> (any BrowserEngine)?
     /// Return true when the navigation was diverted (Peek).
     func tab(_ tab: WebTab, shouldDivertNavigationTo url: String) -> Bool
     func tab(_ tab: WebTab, openInSplitView url: String)
@@ -31,7 +32,7 @@ struct FindState: Equatable {
 /// A site permission waiting for the user's decision.
 struct PendingPermission: Identifiable {
     let id = UUID()
-    let request: CEFPermissionRequest
+    let request: PermissionRequest
     let decide: @MainActor (Bool) -> Void
 }
 
@@ -52,7 +53,7 @@ final class WebTab: Identifiable {
     @ObservationIgnored weak var store: BrowserStore?
     @ObservationIgnored weak var host: TabHost?
 
-    private(set) var engine: CEFBrowser?
+    private(set) var engine: (any BrowserEngine)?
     @ObservationIgnored var lastVisibleAt = Date()
     @ObservationIgnored private var closeCompletions: [@MainActor () -> Void] = []
     @ObservationIgnored private var faviconTask: Task<Void, Never>?
@@ -74,7 +75,7 @@ final class WebTab: Identifiable {
     var isPlayingMedia = false
     var isCameraActive = false
     var isMicrophoneActive = false
-    var crash: CEFTerminationStatus?
+    var crash: TerminationStatus?
     var loadFailure: LoadFailure?
     var find: FindState?
     var permissionRequest: PendingPermission?
@@ -118,10 +119,10 @@ final class WebTab: Identifiable {
 
     /// Creates the Chromium browser when the tab is first shown.
     @discardableResult
-    func ensureEngine(context: CEFRequestContext) -> CEFBrowser? {
+    func ensureEngine(context: any BrowsingContext) -> (any BrowserEngine)? {
         guard internalPage == nil else { return nil }
         if let engine { return engine }
-        let engine = CEFBrowser(requestContext: context)
+        let engine = context.makeBrowser()
         engine.delegate = self
         self.engine = engine
         appliedColorScheme = nil
@@ -131,7 +132,7 @@ final class WebTab: Identifiable {
     }
 
     /// Adopts a browser created by Chromium for a popup.
-    func adopt(_ engine: CEFBrowser) {
+    func adopt(_ engine: any BrowserEngine) {
         engine.delegate = self
         self.engine = engine
         appliedColorScheme = nil
@@ -348,7 +349,8 @@ final class WebTab: Identifiable {
         faviconTask?.cancel()
         let pageURL = url
         faviconTask = Task { [weak self] in
-            guard let engine = self?.engine, let image = await engine.downloadImage(url: preferred) else { return }
+            guard let engine = self?.engine, let data = await engine.downloadImage(url: preferred),
+                  let image = NSImage(data: data) else { return }
             guard let self, !Task.isCancelled else { return }
             favicon = image
             FaviconCache.shared.store(image, for: pageURL)
@@ -356,9 +358,9 @@ final class WebTab: Identifiable {
     }
 }
 
-// MARK: - CEFBrowserDelegate
+// MARK: - BrowserEngineDelegate
 
-extension WebTab: CEFBrowserDelegate {
+extension WebTab: BrowserEngineDelegate {
     private enum MenuID {
         static let openLinkInNewTab = 26500
         static let openLinkInSplitView = 26501
@@ -381,23 +383,23 @@ extension WebTab: CEFBrowserDelegate {
         static let boost = 26518
     }
 
-    func browser(_ browser: CEFBrowser, didChangeAddress url: String) {
+    func browser(_ browser: any BrowserEngine, didChangeAddress url: String) {
         self.url = url
         loadFailure = nil
         store?.syncTabModel(self)
     }
 
-    func browser(_ browser: CEFBrowser, didChangeTitle title: String) {
+    func browser(_ browser: any BrowserEngine, didChangeTitle title: String) {
         self.title = title
         store?.updateHistoryTitle(url: url, title: title, incognito: isIncognito)
         store?.syncTabModel(self)
     }
 
-    func browser(_ browser: CEFBrowser, didChangeFaviconURLs urls: [String]) {
+    func browser(_ browser: any BrowserEngine, didChangeFaviconURLs urls: [String]) {
         loadFavicon(from: urls)
     }
 
-    func browser(_ browser: CEFBrowser, didChangeLoadingState isLoading: Bool, canGoBack: Bool, canGoForward: Bool) {
+    func browser(_ browser: any BrowserEngine, didChangeLoadingState isLoading: Bool, canGoBack: Bool, canGoForward: Bool) {
         if isLoading { applyContentAppearance() }
         self.isLoading = isLoading
         self.canGoBack = canGoBack
@@ -405,11 +407,11 @@ extension WebTab: CEFBrowserDelegate {
         if isLoading { progress = max(progress, 0.1) }
     }
 
-    func browser(_ browser: CEFBrowser, didChangeProgress progress: Double) {
+    func browser(_ browser: any BrowserEngine, didChangeProgress progress: Double) {
         self.progress = progress
     }
 
-    func browser(_ browser: CEFBrowser, didFinishLoad url: String, httpStatusCode: Int) {
+    func browser(_ browser: any BrowserEngine, didFinishLoad url: String, httpStatusCode: Int) {
         store?.recordVisit(url: url, title: title, incognito: isIncognito)
         applyBoosts()
         applyPageFeatures(browser)
@@ -425,32 +427,32 @@ extension WebTab: CEFBrowserDelegate {
         Task { [weak self] in
             try? await Task.sleep(for: delay)
             guard let self, let engine, host?.isDisplaying(self) == true,
-                  let image = await engine.captureScreenshot() else { return }
+                  let data = await engine.captureScreenshot(), let image = NSImage(data: data) else { return }
             snapshot = image
         }
     }
 
-    func browser(_ browser: CEFBrowser, didFailLoad url: String, errorCode: Int, errorText: String) {
+    func browser(_ browser: any BrowserEngine, didFailLoad url: String, errorCode: Int, errorText: String) {
         // ERR_ABORTED (-3) happens on user-cancelled or replaced navigations.
         guard errorCode != -3 else { return }
         loadFailure = LoadFailure(url: url, code: errorCode, description: errorText)
     }
 
-    func browser(_ browser: CEFBrowser, didChangeStatusMessage message: String?) {
+    func browser(_ browser: any BrowserEngine, didChangeStatusMessage message: String?) {
         statusMessage = message
     }
 
-    func browser(_ browser: CEFBrowser, didChangeFullscreen fullscreen: Bool) {
+    func browser(_ browser: any BrowserEngine, didChangeFullscreen fullscreen: Bool) {
         isFullscreen = fullscreen
         host?.tab(self, didChangeFullscreen: fullscreen)
     }
 
-    func browser(_ browser: CEFBrowser, didChangeMediaAccess camera: Bool, microphone: Bool) {
+    func browser(_ browser: any BrowserEngine, didChangeMediaAccess camera: Bool, microphone: Bool) {
         isCameraActive = camera
         isMicrophoneActive = microphone
     }
 
-    func browser(_ browser: CEFBrowser, consoleMessage message: String) -> Bool {
+    func browser(_ browser: any BrowserEngine, consoleMessage message: String) -> Bool {
         if handleAutofillMessage(message) { return true }
         if message.hasPrefix("__arrow_quote__:") {
             copyQuote(String(message.dropFirst("__arrow_quote__:".count)))
@@ -472,12 +474,12 @@ extension WebTab: CEFBrowserDelegate {
         return false
     }
 
-    func browser(_ browser: CEFBrowser, createPopupFor url: String, disposition: CEFWindowOpenDisposition,
-                 userGesture: Bool, features: CEFPopupFeatures) -> CEFBrowser? {
+    func browser(_ browser: any BrowserEngine, createPopupFor url: String, disposition: WindowOpenDisposition,
+                 userGesture: Bool, features: PopupFeatures) -> (any BrowserEngine)? {
         host?.tab(self, createPopupFor: url, features: features)
     }
 
-    func browser(_ browser: CEFBrowser, openURL url: String, disposition: CEFWindowOpenDisposition) -> Bool {
+    func browser(_ browser: any BrowserEngine, openURL url: String, disposition: WindowOpenDisposition) -> Bool {
         // Preferences ▸ Links: ⌥⌘-click opens Little Arrow, Shift-click opens Peek.
         let modifiers = NSEvent.modifierFlags.intersection(.deviceIndependentFlagsMask)
         if let settings = store?.settings, disposition != .currentTab, disposition != .other {
@@ -502,20 +504,20 @@ extension WebTab: CEFBrowserDelegate {
         }
     }
 
-    func browser(_ browser: CEFBrowser, shouldNavigateTo url: String, userGesture: Bool, isRedirect: Bool) -> Bool {
+    func browser(_ browser: any BrowserEngine, shouldNavigateTo url: String, userGesture: Bool, isRedirect: Bool) -> Bool {
         guard userGesture, !isRedirect else { return true }
         return !(host?.tab(self, shouldDivertNavigationTo: url) ?? false)
     }
 
-    func browser(_ browser: CEFBrowser, didFindMatches count: Int, activeMatch: Int, finalUpdate: Bool) {
+    func browser(_ browser: any BrowserEngine, didFindMatches count: Int, activeMatch: Int, finalUpdate: Bool) {
         guard find != nil else { return }
         find?.matchCount = count
         find?.activeMatch = activeMatch
     }
 
-    func browser(_ browser: CEFBrowser, contextMenuItemsFor params: CEFContextMenuParams) -> [CEFContextMenuItem] {
+    func browser(_ browser: any BrowserEngine, contextMenuItemsFor params: ContextMenuParams) -> [ContextMenuItem] {
         if params.isEditable { return [] }
-        var items: [CEFContextMenuItem] = []
+        var items: [ContextMenuItem] = []
         if params.hasLink {
             items += [
                 .item(id: MenuID.openLinkInNewTab, title: "Open Link in New Tab"),
@@ -562,7 +564,7 @@ extension WebTab: CEFBrowserDelegate {
         return items
     }
 
-    func browser(_ browser: CEFBrowser, didSelectContextMenuItem id: Int, params: CEFContextMenuParams) {
+    func browser(_ browser: any BrowserEngine, didSelectContextMenuItem id: Int, params: ContextMenuParams) {
         let pasteboard = NSPasteboard.general
         switch id {
         case MenuID.openLinkInNewTab: host?.tab(self, openURL: params.linkURL, inBackground: true)
@@ -598,7 +600,7 @@ extension WebTab: CEFBrowserDelegate {
         }
     }
 
-    func browser(_ browser: CEFBrowser, requestsPermission request: CEFPermissionRequest,
+    func browser(_ browser: any BrowserEngine, requestsPermission request: PermissionRequest,
                  decision: @escaping @MainActor (Bool) -> Void) -> Bool {
         permissionRequest?.decide(false)
         permissionRequest = PendingPermission(request: request) { [weak self] allowed in
@@ -608,17 +610,17 @@ extension WebTab: CEFBrowserDelegate {
         return true
     }
 
-    func browser(_ browser: CEFBrowser, rendererDidTerminate status: CEFTerminationStatus) {
+    func browser(_ browser: any BrowserEngine, rendererDidTerminate status: TerminationStatus) {
         crash = status
         isLoading = false
         isPlayingMedia = false
     }
 
-    func browserDidGainFocus(_ browser: CEFBrowser) {
+    func browserDidGainFocus(_ browser: any BrowserEngine) {
         host?.tabDidGainFocus(self)
     }
 
-    func browserWillClose(_ browser: CEFBrowser) {
+    func browserWillClose(_ browser: any BrowserEngine) {
         // window.close() from the page: close the tab unless we initiated it.
         // Deferred so the tab is not torn down inside Chromium's callback.
         if !browser.isClosing, engine === browser {
@@ -629,7 +631,7 @@ extension WebTab: CEFBrowserDelegate {
         }
     }
 
-    func browserDidClose(_ browser: CEFBrowser) {
+    func browserDidClose(_ browser: any BrowserEngine) {
         if engine === browser { engine = nil }
         isLoading = false
         isPlayingMedia = false
@@ -643,7 +645,7 @@ extension WebTab: CEFBrowserDelegate {
 
 extension WebTab {
     /// Theme variables and the quote button, as the preferences allow.
-    func applyPageFeatures(_ browser: CEFBrowser) {
+    func applyPageFeatures(_ browser: any BrowserEngine) {
         guard let store, url.hasPrefix("http") else { return }
         if store.settings.shareThemeWithWebsites, !isIncognito, let script = themeScript(store) {
             browser.executeJavaScript(script, scriptURL: "arrow://theme")

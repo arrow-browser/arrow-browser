@@ -1,4 +1,5 @@
 import AppKit
+import ArrowCore
 import ArrowKit
 import SwiftUI
 
@@ -118,7 +119,7 @@ struct CastView: View {
 }
 
 private struct CastSinkRow: View {
-    let sink: CEFMediaSink
+    let sink: MediaSink
     let media: CastMedia?
     let tab: WebTab?
     @State private var cast = CastController.shared

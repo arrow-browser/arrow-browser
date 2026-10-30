@@ -7,7 +7,7 @@
 │ SwiftUI views (Sidebar, ContentPanel, CommandBar, Library, Settings…)              │
 │        │ observe                                                                   │
 │ BrowserStore ── BrowserState (ArrowKit) ── JSONStore ─▶ ~/Library/…/Arrow/State    │
-│   │  WebTab (one per live tab) ── CEFBrowserDelegate                               │
+│   │  WebTab (one per live tab) ── BrowserEngineDelegate (ArrowCore)                │
 │   │        │                                                                       │
 │   │  CEFBrowser ── cef_client_t + handlers implemented in Swift (CefHandler<T>)   │
 │   │        │ C API                                                                 │
@@ -93,10 +93,29 @@ The app adds the runtime:
   the live `WebTab`s. It also runs maintenance every minute: auto-archive, and
   discarding background tabs after an hour.
 - **`WebTab`** mirrors a page's state for SwiftUI and implements
-  `CEFBrowserDelegate`: popups, Peek, context menus, permissions, media
+  `BrowserEngineDelegate`: popups, Peek, context menus, permissions, media
   detection, Boost injection.
 - **`WindowState`** and **`BrowserWindowController`** handle the selection,
   the overlays and every menu command.
+
+## Engine boundary
+
+The model reaches Chromium only through ArrowCore's engine protocols, so it
+can be shared by every platform:
+
+- **`BrowserEngine`**: one browser (navigation, scripts, DevTools methods,
+  find, zoom, screenshots as PNG data). Its events go to a
+  `BrowserEngineDelegate`, with engine-neutral types (`PopupFeatures`,
+  `ContextMenuParams`, `PermissionRequest`…).
+- **`BrowsingContext`**: a profile, which creates browsers and media routers
+  and clears cookies and cache.
+- **`EngineRuntime`**: the profiles, the `DownloadCenter` and the
+  `ResourceFilter` (ad blocker) shared by every browser.
+
+`Sources/Arrow/CEF/CEFEngine.swift` implements them with `CEFBrowser`,
+`CEFRequestContext` and `CEFRuntime`. macOS code that needs CEF itself (the
+`NSView` hosting a browser, sized popups, site settings) casts to the CEF
+types.
 
 ## Profiles and incognito
 

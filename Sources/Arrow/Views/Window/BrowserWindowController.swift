@@ -101,7 +101,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func focusWebContent() {
-        guard let engine = selectedTab?.engine else { return }
+        guard let engine = selectedTab?.engine as? CEFBrowser else { return }
         DispatchQueue.main.async { [weak self] in
             guard let window = self?.window else { return }
             if let view = engine.hostView.subviews.first {
@@ -413,7 +413,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
                 clip = CGRect(x: pageX + area.minX / scale, y: pageY + area.minY / scale,
                               width: area.width / scale, height: area.height / scale)
             }
-            guard let image = await engine.captureScreenshot(clip: clip) else { return }
+            guard let data = await engine.captureScreenshot(clip: clip), let image = NSImage(data: data) else { return }
             NSPasteboard.general.clearContents()
             NSPasteboard.general.writeObjects([image])
             if !isIncognito { MediaLibrary.saveCapture(image, from: tab, in: store) }
@@ -462,8 +462,8 @@ extension BrowserWindowController: TabHost {
         openNewTab(url, select: !inBackground)
     }
 
-    func tab(_ tab: WebTab, createPopupFor url: String, features: CEFPopupFeatures) -> CEFBrowser? {
-        let context = tab.engine?.requestContext ?? store.requestContext(for: tab.profileID)
+    func tab(_ tab: WebTab, createPopupFor url: String, features: PopupFeatures) -> (any BrowserEngine)? {
+        let context = (tab.engine as? CEFBrowser)?.requestContext ?? store.cefContext(for: tab.profileID)
         if features.isPopup, let frame = features.frame {
             // Sized window.open() popups (sign-in flows…) get their own window.
             let popup = PopupWindowController(context: context, frame: frame, store: store, parent: self)

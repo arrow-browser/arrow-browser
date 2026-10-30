@@ -1,36 +1,12 @@
+import ArrowCore
 import CEF
 import Foundation
-
-/// Snapshot of a download reported by Chromium.
-struct CEFDownload: Sendable, Identifiable {
-    enum State: Sendable { case inProgress, paused, complete, canceled, interrupted }
-
-    var id: UInt32
-    var url: String
-    var suggestedFileName: String
-    var fullPath: String
-    var mimeType: String
-    var receivedBytes: Int64
-    var totalBytes: Int64
-    var percentComplete: Int
-    var currentSpeed: Int64
-    var state: State
-}
-
-@MainActor
-protocol CEFDownloadCenterDelegate: AnyObject {
-    /// Destination of a new download, and whether to ask the user (save panel).
-    func downloadCenter(destinationFor suggestedName: String) -> (url: URL, ask: Bool)
-    func downloadCenter(didUpdate download: CEFDownload)
-    /// A navigation of this browser turned into a download.
-    func downloadCenter(didStart downloadID: UInt32, inBrowser browserID: Int32)
-}
 
 /// Single download handler shared by every browser.
 final class CEFDownloadCenter: @unchecked Sendable {
     static let shared = CEFDownloadCenter()
 
-    @MainActor weak var delegate: CEFDownloadCenterDelegate?
+    @MainActor weak var delegate: (any DownloadCenterDelegate)?
     private(set) var handler: CefHandler<cef_download_handler_t>!
     @MainActor private var callbacks: [UInt32: CefRef<cef_download_item_callback_t>] = [:]
 
@@ -85,9 +61,9 @@ final class CEFDownloadCenter: @unchecked Sendable {
         }
     }
 
-    private static func snapshot(_ item: UnsafeMutablePointer<cef_download_item_t>) -> CEFDownload {
+    private static func snapshot(_ item: UnsafeMutablePointer<cef_download_item_t>) -> Download {
         let i = item.pointee
-        let state: CEFDownload.State = if i.is_complete?(item) != 0 {
+        let state: Download.State = if i.is_complete?(item) != 0 {
             .complete
         } else if i.is_canceled?(item) != 0 {
             .canceled
@@ -98,7 +74,7 @@ final class CEFDownloadCenter: @unchecked Sendable {
         } else {
             .inProgress
         }
-        return CEFDownload(
+        return Download(
             id: i.get_id?(item) ?? 0,
             url: String(cefUserFree: i.get_url?(item)),
             suggestedFileName: String(cefUserFree: i.get_suggested_file_name?(item)),

@@ -1,4 +1,5 @@
 import AppKit
+import ArrowCore
 import ArrowKit
 import SwiftUI
 
@@ -230,7 +231,7 @@ struct EaselView: View {
         guard let source = candidates.compactMap({ controller.store.tabs[$0.id] }).first(where: { $0.engine != nil && $0.internalPage == nil }),
               let engine = source.engine else { return }
         Task {
-            guard let image = await engine.captureScreenshot(), let data = image.pngData else { return }
+            guard let data = await engine.captureScreenshot(), let image = NSImage(data: data) else { return }
             let point = nextPosition()
             let size = image.size.fitting(maxWidth: 420)
             update { $0.items.append(EaselItem(content: .image(data, sourceURL: source.url), x: point.x, y: point.y,
