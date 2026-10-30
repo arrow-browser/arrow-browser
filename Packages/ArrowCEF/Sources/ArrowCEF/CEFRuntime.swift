@@ -3,23 +3,23 @@ import CEF
 
 /// Owns the Chromium (CEF) browser process: initialization, message loop and
 /// shutdown.
-final class CEFRuntime: @unchecked Sendable {
-    static let shared = CEFRuntime()
+public final class CEFRuntime: @unchecked Sendable {
+    public static let shared = CEFRuntime()
 
     /// Directory holding every profile's data (cookies, cache, history…).
-    let rootCachePath: URL
+    public let rootCachePath: URL
     /// Called once the CEF context is ready (browsers may be created).
-    var onContextInitialized: (@MainActor () -> Void)?
+    public var onContextInitialized: (@MainActor () -> Void)?
     /// Arrow was launched again while running: receives the new launch's
     /// arguments (URLs to open). Chromium would otherwise open its own window.
-    var onRelaunch: (@MainActor (_ arguments: [String]) -> Void)?
+    public var onRelaunch: (@MainActor (_ arguments: [String]) -> Void)?
     /// Extra command-line switches of the browser process (set before
     /// `initialize()`), e.g. `load-extension`.
-    var browserSwitches: [(name: String, value: String?)] = []
+    public var browserSwitches: [(name: String, value: String?)] = []
 
     private var app: CefHandler<cef_app_t>!
     private var browserProcessHandler: CefHandler<cef_browser_process_handler_t>!
-    private(set) var isInitialized = false
+    public private(set) var isInitialized = false
 
     private init() {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -81,14 +81,14 @@ final class CEFRuntime: @unchecked Sendable {
     }
 
     /// Path of the default profile, which backs CEF's global request context.
-    var defaultProfilePath: URL {
+    public var defaultProfilePath: URL {
         rootCachePath.appendingPathComponent("Default", isDirectory: true)
     }
 
     /// Initializes CEF in the browser process. Must be called on the main
     /// thread once the `NSApplication` subclass exists.
     @MainActor
-    func initialize() -> Bool {
+    public func initialize() -> Bool {
         // Must be the first call into libcef.
         _ = cef_api_hash(Int32(CEF_API_VERSION), 0)
 
@@ -133,7 +133,7 @@ final class CEFRuntime: @unchecked Sendable {
     /// Language of Chromium's own pages (Developer Tools, error pages, PDF
     /// viewer): the user's first language Chromium is translated into, named
     /// like its `.lproj` ("fr", "pt-BR").
-    static var interfaceLocale: String? {
+    public static var interfaceLocale: String? {
         guard let frameworks = Bundle.main.privateFrameworksPath else { return nil }
         let resources = URL(fileURLWithPath: frameworks)
             .appendingPathComponent("Chromium Embedded Framework.framework/Resources", isDirectory: true)
@@ -148,7 +148,7 @@ final class CEFRuntime: @unchecked Sendable {
         return nil
     }
 
-    static var acceptLanguages: String {
+    public static var acceptLanguages: String {
         let languages = Locale.preferredLanguages.flatMap { identifier -> [String] in
             let base = identifier.split(separator: "-").first.map(String.init) ?? identifier
             return base == identifier ? [identifier] : [identifier, base]
@@ -160,17 +160,17 @@ final class CEFRuntime: @unchecked Sendable {
     /// Runs the Chromium message loop (drives `NSApplication`) until
     /// `quitMessageLoop()` is called.
     @MainActor
-    func runMessageLoop() {
+    public func runMessageLoop() {
         cef_run_message_loop()
     }
 
     @MainActor
-    func quitMessageLoop() {
+    public func quitMessageLoop() {
         cef_quit_message_loop()
     }
 
     @MainActor
-    func shutdown() {
+    public func shutdown() {
         cef_shutdown()
     }
 }

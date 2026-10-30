@@ -20,8 +20,8 @@
 
 ## Chromium integration without C++
 
-CEF publishes a stable C API (`include/capi`). `Sources/CEF/module.modulemap`
-exposes it to Swift as the `CEF` module and pins `CEF_API_VERSION` so struct
+CEF publishes a stable C API (`include/capi`). The `CEF` module of
+`Packages/ArrowCEF` exposes it to Swift and pins `CEF_API_VERSION` so struct
 layouts match the version given to `cef_api_hash()` at startup.
 
 - **Reference counting** (`CEFRefCounting.swift`). CEF objects implemented by
@@ -101,7 +101,8 @@ way, with a fake engine and platform:
   page snapshots are PNG data (`PageImage`) that each app decodes.
 
 The macOS app adds the SwiftUI and AppKit views, `BrowserWindowController`
-(the window and every menu command), the CEF bindings and `MacPlatform`.
+(the window and every menu command) and `MacPlatform`, and uses the CEF
+bindings of `Packages/ArrowCEF`.
 
 ## Engine boundary
 
@@ -119,7 +120,7 @@ model; `ArrowCore` re-exports it.
 - **`EngineRuntime`**: the profiles, the `DownloadCenter` and the
   `ResourceFilter` (ad blocker) shared by every browser.
 
-`Sources/Arrow/CEF/CEFEngine.swift` implements them with `CEFBrowser`,
+`ArrowCEF` (`Packages/ArrowCEF`) implements them with `CEFBrowser`,
 `CEFRequestContext` and `CEFRuntime`. macOS code that needs CEF itself (the
 `NSView` hosting a browser, sized popups, site settings) casts to the CEF
 types.

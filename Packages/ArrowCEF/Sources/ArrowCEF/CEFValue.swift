@@ -2,8 +2,8 @@ import CEF
 import Foundation
 
 /// Converts Swift JSON-like values into CEF values.
-enum CEFValue {
-    static func dictionary(from object: [String: Any]) -> CefRef<cef_dictionary_value_t>? {
+public enum CEFValue {
+    public static func dictionary(from object: [String: Any]) -> CefRef<cef_dictionary_value_t>? {
         guard let dictionary = CefRef(adopting: cef_dictionary_value_create()) else { return nil }
         let d = dictionary.pointer
         for (key, value) in object {
@@ -35,7 +35,7 @@ enum CEFValue {
         return dictionary
     }
 
-    static func list(from array: [Any]) -> CefRef<cef_list_value_t>? {
+    public static func list(from array: [Any]) -> CefRef<cef_list_value_t>? {
         guard let list = CefRef(adopting: cef_list_value_create()) else { return nil }
         let l = list.pointer
         _ = l.pointee.set_size?(l, array.count)

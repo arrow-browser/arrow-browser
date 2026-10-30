@@ -3,21 +3,21 @@ import Foundation
 
 /// Chromium tracing (Help ▸ Troubleshooting ▸ Record Trace).
 @MainActor
-final class CEFTracing {
-    static let shared = CEFTracing()
+public final class CEFTracing {
+    public static let shared = CEFTracing()
 
-    private(set) var isRecording = false
+    public private(set) var isRecording = false
     private var endCallback: CefHandler<cef_end_tracing_callback_t>?
     private var onFinish: ((URL) -> Void)?
 
     /// Starts recording Chromium's default categories.
-    func start() {
+    public func start() {
         guard !isRecording else { return }
         isRecording = withCefString("") { cef_begin_tracing($0, nil) } != 0
     }
 
     /// Stops recording and writes the trace (JSON, for chrome://tracing or Perfetto) to `url`.
-    func stop(writingTo url: URL, completion: @escaping (URL) -> Void) {
+    public func stop(writingTo url: URL, completion: @escaping (URL) -> Void) {
         guard isRecording else { return }
         onFinish = completion
         let callback = CefHandler<cef_end_tracing_callback_t>(owner: self) { callback in

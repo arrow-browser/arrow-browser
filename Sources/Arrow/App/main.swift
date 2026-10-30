@@ -1,4 +1,5 @@
 import AppKit
+import ArrowCEF
 import ArrowCore
 
 // Arrow's entry point: the Chromium message loop drives NSApplication.

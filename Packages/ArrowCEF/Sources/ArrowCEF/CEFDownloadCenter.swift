@@ -1,13 +1,13 @@
-import ArrowCore
+import ArrowEngine
 import CEF
 import Foundation
 
 /// Single download handler shared by every browser.
-final class CEFDownloadCenter: @unchecked Sendable {
-    static let shared = CEFDownloadCenter()
+public final class CEFDownloadCenter: @unchecked Sendable {
+    public static let shared = CEFDownloadCenter()
 
-    @MainActor weak var delegate: (any DownloadCenterDelegate)?
-    private(set) var handler: CefHandler<cef_download_handler_t>!
+    @MainActor public weak var delegate: (any DownloadCenterDelegate)?
+    public private(set) var handler: CefHandler<cef_download_handler_t>!
     @MainActor private var callbacks: [UInt32: CefRef<cef_download_item_callback_t>] = [:]
 
     private init() {
@@ -88,7 +88,7 @@ final class CEFDownloadCenter: @unchecked Sendable {
         )
     }
 
-    @MainActor func cancel(_ id: UInt32) { callbacks[id].map { $0.pointer.pointee.cancel?($0.pointer) } }
-    @MainActor func pause(_ id: UInt32) { callbacks[id].map { $0.pointer.pointee.pause?($0.pointer) } }
-    @MainActor func resume(_ id: UInt32) { callbacks[id].map { $0.pointer.pointee.resume?($0.pointer) } }
+    @MainActor public func cancel(_ id: UInt32) { callbacks[id].map { $0.pointer.pointee.cancel?($0.pointer) } }
+    @MainActor public func pause(_ id: UInt32) { callbacks[id].map { $0.pointer.pointee.pause?($0.pointer) } }
+    @MainActor public func resume(_ id: UInt32) { callbacks[id].map { $0.pointer.pointee.resume?($0.pointer) } }
 }

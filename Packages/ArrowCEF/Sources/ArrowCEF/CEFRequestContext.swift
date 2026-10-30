@@ -3,9 +3,9 @@ import Foundation
 
 /// A browsing profile: cookies, storage and cache isolated from other
 /// profiles (backed by a CEF request context).
-final class CEFRequestContext: @unchecked Sendable {
-    let ref: CefRef<cef_request_context_t>
-    let isIncognito: Bool
+public final class CEFRequestContext: @unchecked Sendable {
+    public let ref: CefRef<cef_request_context_t>
+    public let isIncognito: Bool
 
     private init(ref: CefRef<cef_request_context_t>, isIncognito: Bool) {
         self.ref = ref
@@ -13,19 +13,19 @@ final class CEFRequestContext: @unchecked Sendable {
     }
 
     /// The default profile (CEF global context).
-    static func global() -> CEFRequestContext {
+    public static func global() -> CEFRequestContext {
         CEFRequestContext(ref: CefRef(adopting: cef_request_context_get_global_context())!, isIncognito: false)
     }
 
     /// A persistent profile stored under `path` (must live inside the root
     /// cache path).
-    static func persistent(path: URL) -> CEFRequestContext {
+    public static func persistent(path: URL) -> CEFRequestContext {
         try? FileManager.default.createDirectory(at: path, withIntermediateDirectories: true)
         return make(cachePath: path.path, incognito: false)
     }
 
     /// An in-memory profile whose data is discarded when released.
-    static func incognito() -> CEFRequestContext {
+    public static func incognito() -> CEFRequestContext {
         make(cachePath: nil, incognito: true)
     }
 
@@ -46,12 +46,12 @@ final class CEFRequestContext: @unchecked Sendable {
     }
 
     /// Clears the HTTP cache of this profile.
-    func clearHTTPCache() {
+    public func clearHTTPCache() {
         ref.pointer.pointee.clear_http_cache?(ref.pointer, nil)
     }
 
     /// Deletes the cookies of `url`'s site (or every cookie when nil).
-    func deleteCookies(url: String?) {
+    public func deleteCookies(url: String?) {
         guard let manager = CefRef(adopting: ref.pointer.pointee.get_cookie_manager?(ref.pointer, nil)) else { return }
         withOptionalCefString(url) { url in
             _ = manager.pointer.pointee.delete_cookies?(manager.pointer, url, nil, nil)
@@ -59,13 +59,13 @@ final class CEFRequestContext: @unchecked Sendable {
     }
 
     /// Reads a content setting (camera, location…) for `url`.
-    func contentSetting(url: String, type: cef_content_setting_types_t) -> cef_content_setting_values_t {
+    public func contentSetting(url: String, type: cef_content_setting_types_t) -> cef_content_setting_values_t {
         withCefString(url) { url in
             ref.pointer.pointee.get_content_setting?(ref.pointer, url, url, type) ?? CEF_CONTENT_SETTING_VALUE_DEFAULT
         }
     }
 
-    func setContentSetting(url: String, type: cef_content_setting_types_t, value: cef_content_setting_values_t) {
+    public func setContentSetting(url: String, type: cef_content_setting_types_t, value: cef_content_setting_values_t) {
         withCefString(url) { url in
             ref.pointer.pointee.set_content_setting?(ref.pointer, url, url, type, value)
         }

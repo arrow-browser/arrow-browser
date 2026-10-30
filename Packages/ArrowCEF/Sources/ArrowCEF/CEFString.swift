@@ -4,7 +4,7 @@ import CEF
 
 extension String {
     /// Copies a CEF string (callback argument, struct field…).
-    init(cef string: UnsafePointer<cef_string_t>?) {
+    public init(cef string: UnsafePointer<cef_string_t>?) {
         guard let string, let characters = string.pointee.str, string.pointee.length > 0 else {
             self = ""
             return
@@ -13,7 +13,7 @@ extension String {
     }
 
     /// Copies and frees a `cef_string_userfree_t` returned by CEF.
-    init(cefUserFree string: cef_string_userfree_t?) {
+    public init(cefUserFree string: cef_string_userfree_t?) {
         guard let string else {
             self = ""
             return
@@ -24,7 +24,7 @@ extension String {
 }
 
 /// Calls `body` with a temporary CEF string pointing at `string`'s UTF-16 storage.
-func withCefString<R>(_ string: String, _ body: (UnsafePointer<cef_string_t>) throws -> R) rethrows -> R {
+public func withCefString<R>(_ string: String, _ body: (UnsafePointer<cef_string_t>) throws -> R) rethrows -> R {
     var utf16 = Array(string.utf16)
     return try utf16.withUnsafeMutableBufferPointer { buffer in
         var cefString = cef_string_t(str: buffer.baseAddress, length: buffer.count, dtor: nil)
@@ -33,7 +33,7 @@ func withCefString<R>(_ string: String, _ body: (UnsafePointer<cef_string_t>) th
 }
 
 /// Calls `body` with an optional temporary CEF string.
-func withOptionalCefString<R>(_ string: String?, _ body: (UnsafePointer<cef_string_t>?) throws -> R) rethrows -> R {
+public func withOptionalCefString<R>(_ string: String?, _ body: (UnsafePointer<cef_string_t>?) throws -> R) rethrows -> R {
     guard let string else { return try body(nil) }
     return try withCefString(string) { try body($0) }
 }
@@ -41,20 +41,20 @@ func withOptionalCefString<R>(_ string: String?, _ body: (UnsafePointer<cef_stri
 extension cef_string_t {
     /// Replaces the contents with an owned copy of `value` (freed by `clear()`
     /// or by CEF when the owning struct is released).
-    mutating func set(_ value: String) {
+    public mutating func set(_ value: String) {
         let utf16 = Array(value.utf16)
         utf16.withUnsafeBufferPointer { buffer in
             _ = cef_string_utf16_set(buffer.baseAddress, buffer.count, &self, 1)
         }
     }
 
-    mutating func clear() {
+    public mutating func clear() {
         cef_string_utf16_clear(&self)
     }
 }
 
 /// Reads all values of a `cef_string_list_t`.
-func cefStringList(_ list: cef_string_list_t?) -> [String] {
+public func cefStringList(_ list: cef_string_list_t?) -> [String] {
     guard let list else { return [] }
     let count = cef_string_list_size(list)
     var values: [String] = []

@@ -1,4 +1,5 @@
 import AppKit
+import ArrowCEF
 import ArrowCore
 import ArrowKit
 import SwiftUI
