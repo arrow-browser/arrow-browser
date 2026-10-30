@@ -320,7 +320,10 @@ final class BrowserWindow {
 
     /// Makes the toolbar's controls take clicks in the title bar, which
     /// otherwise moves the window, and leaves room for the caption buttons.
+    static var titleBarUpdates = 0
+    static var regionUpdates = 0
     private func updateTitleBar() {
+        Self.titleBarUpdates += 1
         // The closed window has no title bar left.
         guard !canClose, let scale = toolbar.xamlRoot?.rasterizationScale, scale > 0 else { return }
         let inset = Double(window.appWindow.titleBar.rightInset) / scale
@@ -339,6 +342,7 @@ final class BrowserWindow {
         }
         guard rects != passthroughRects else { return }
         passthroughRects = rects
+        Self.regionUpdates += 1
         try? nonClientInput?.setRegionRects(.passthrough, rects)
     }
 
@@ -426,17 +430,21 @@ final class BrowserWindow {
         toolbar.layoutUpdated.addHandler { [weak self] _, _ in self?.updateTitleBar() }
         window.closed.addHandler { [weak self] _, event in
             // The window closes once every browser has.
+            fputs("arrow-debug \(Date().timeIntervalSince1970): closed event, canClose \(self?.canClose ?? false)\n", stderr); fflush(stderr)
             guard let self, !canClose else { return }
             event?.handled = true
             guard !isClosing else { return }
             isClosing = true
             store.closeAllBrowsers {
+                fputs("arrow-debug \(Date().timeIntervalSince1970): browsers closed\n", stderr); fflush(stderr)
                 // Not from within this handler, which cancels the close:
                 // the completion runs at once when no browser is open.
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
                     canClose = true
+                    fputs("arrow-debug \(Date().timeIntervalSince1970): closing the window\n", stderr); fflush(stderr)
                     try? window.close()
+                    fputs("arrow-debug \(Date().timeIntervalSince1970): window closed\n", stderr); fflush(stderr)
                     onClose?()
                 }
             }
