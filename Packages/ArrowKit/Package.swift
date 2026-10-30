@@ -6,6 +6,7 @@ let package = Package(
     platforms: [.macOS(.v15)],
     products: [
         .library(name: "ArrowKit", targets: ["ArrowKit"]),
+        .library(name: "ArrowEngine", targets: ["ArrowEngine"]),
         .library(name: "ArrowCore", targets: ["ArrowCore"]),
     ],
     dependencies: [
@@ -18,10 +19,15 @@ let package = Package(
             .product(name: "Crypto", package: "swift-crypto"),
             .product(name: "CryptoExtras", package: "swift-crypto"),
         ]),
+        // What the model needs from a browser engine, implemented by the
+        // engine bindings. No dependency, so the bindings build without the
+        // model.
+        .target(name: "ArrowEngine"),
         // The app's state and services shared by every platform, on top of
         // ArrowKit (docs/PORTABILITY.md).
         .target(name: "ArrowCore", dependencies: [
             "ArrowKit",
+            "ArrowEngine",
             .product(name: "Crypto", package: "swift-crypto"),
         ]),
         .testTarget(name: "ArrowKitTests", dependencies: [

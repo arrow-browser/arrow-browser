@@ -105,8 +105,10 @@ The macOS app adds the SwiftUI and AppKit views, `BrowserWindowController`
 
 ## Engine boundary
 
-The model reaches Chromium only through ArrowCore's engine protocols, so it
-can be shared by every platform:
+The model reaches Chromium only through engine protocols, so it can be
+shared by every platform. They live in `ArrowEngine`, a library of the
+ArrowKit package with no dependency, so the engine bindings build without the
+model; `ArrowCore` re-exports it.
 
 - **`BrowserEngine`**: one browser (navigation, scripts, DevTools methods,
   find, zoom, screenshots as PNG data). Its events go to a
