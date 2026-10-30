@@ -26,7 +26,7 @@ URLs. Pass it at build time: `npx astro build --site https://example.com`.
 | `src/i18n/en.ts` | English texts; their shape is the `Dictionary` type every language follows |
 | `src/i18n/fr.ts` | French texts |
 | `src/i18n/index.ts` | Languages, dictionaries and the GitHub link |
-| `src/components/` | Page sections (`Hero`, `Spaces`, `Features`, `Privacy`, `Native`, `OpenSource`), header and footer |
+| `src/components/` | Page sections (`Hero`, `Spaces`, `Features`, `Privacy`, `OpenSource`), header and footer |
 | `src/layouts/Base.astro` | `<head>`: meta tags, alternate languages |
 | `src/styles/global.css` | Colors (light and dark), type and shared styles |
 | `src/assets/screenshot.webp` | Copy of `docs/screenshot.webp`, resized at build time |

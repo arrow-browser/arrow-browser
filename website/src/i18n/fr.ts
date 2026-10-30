@@ -5,7 +5,7 @@ export const fr: Dictionary = {
 	meta: {
 		title: 'Arrow — Le web, bien rangé',
 		description:
-			'Arrow est un navigateur natif pour macOS, respectueux de la vie privée, avec des espaces, une barre latérale d’onglets et une barre de commande. Bientôt open source.',
+			'Arrow est un navigateur pour macOS respectueux de la vie privée, avec des espaces, une barre latérale d’onglets et une barre de commande. Bientôt open source.',
 	},
 	nav: {
 		label: 'Principal',
@@ -19,7 +19,7 @@ export const fr: Dictionary = {
 	hero: {
 		badge: 'Open source — bientôt',
 		title: 'Le web, bien rangé.',
-		lead: 'Arrow est un navigateur natif pour macOS. Il réunit vos onglets dans une barre latérale, range votre vie en espaces et fait le ménage derrière vous — sans jamais regarder ce que vous faites.',
+		lead: 'Arrow est un navigateur pour macOS qui réunit vos onglets dans une barre latérale, range votre vie en espaces et fait le ménage derrière vous — sans jamais regarder ce que vous faites.',
 		primary: 'Suivre le projet',
 		secondary: 'Découvrir les fonctionnalités',
 		requirements: 'Pour macOS 15 ou ultérieur · Apple silicon',
@@ -123,20 +123,6 @@ export const fr: Dictionary = {
 		},
 		footnote: 'Et comme Arrow sera open source, vous n’aurez pas à nous croire sur parole.',
 	},
-	native: {
-		eyebrow: 'Sous le capot',
-		title: 'Natif sur Mac. Chez lui sur le web.',
-		cards: {
-			mac: {
-				title: 'Écrit en Swift',
-				body: 'Arrow est une vraie app Mac, construite avec SwiftUI et AppKit : menus natifs, raccourcis système, gestes du trackpad, mode clair et sombre, et même AppleScript.',
-			},
-			web: {
-				title: 'Propulsé par Chromium',
-				body: 'Le moteur Chromium affiche les sites tels qu’ils ont été conçus, fait tourner vos extensions Chrome et embarque les outils de développement que vous connaissez.',
-			},
-		},
-	},
 	openSource: {
 		eyebrow: 'Open source',
 		title: 'Bientôt open source.',
@@ -144,7 +130,7 @@ export const fr: Dictionary = {
 		cta: 'Suivre sur GitHub',
 	},
 	footer: {
-		tagline: 'Un navigateur natif pour macOS, respectueux de votre vie privée.',
+		tagline: 'Un navigateur pour macOS, respectueux de votre vie privée.',
 		noTracking: 'Ce site n’utilise ni cookies, ni traqueurs, ni ressources tierces.',
 		trademarks:
 			'Les noms de produits cités sont des marques de leurs propriétaires respectifs. Arrow est un projet indépendant, sans affiliation avec eux.',

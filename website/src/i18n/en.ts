@@ -2,7 +2,7 @@ export const en = {
 	meta: {
 		title: 'Arrow — The web, neatly arranged',
 		description:
-			'Arrow is a native, privacy-first browser for macOS, with spaces, a tab sidebar and a command bar. Open source soon.',
+			'Arrow is a privacy-first browser for macOS, with spaces, a tab sidebar and a command bar. Open source soon.',
 	},
 	nav: {
 		label: 'Main',
@@ -16,7 +16,7 @@ export const en = {
 	hero: {
 		badge: 'Open source — coming soon',
 		title: 'The web, neatly arranged.',
-		lead: 'Arrow is a native browser for macOS. It gathers your tabs in a sidebar, sorts your life into spaces and tidies up after you — without ever watching what you do.',
+		lead: 'Arrow is a browser for macOS that gathers your tabs in a sidebar, sorts your life into spaces and tidies up after you — without ever watching what you do.',
 		primary: 'Follow the project',
 		secondary: 'Explore the features',
 		requirements: 'For macOS 15 or later · Apple silicon',
@@ -120,20 +120,6 @@ export const en = {
 		},
 		footnote: 'And because Arrow will be open source, you won’t have to take our word for it.',
 	},
-	native: {
-		eyebrow: 'Under the hood',
-		title: 'Native to the Mac. At home on the web.',
-		cards: {
-			mac: {
-				title: 'Written in Swift',
-				body: 'Arrow is a real Mac app, built with SwiftUI and AppKit: native menus, system shortcuts, trackpad gestures, light and dark mode, even AppleScript.',
-			},
-			web: {
-				title: 'Powered by Chromium',
-				body: 'The Chromium engine renders sites the way they were built, runs your Chrome extensions and comes with the developer tools you know.',
-			},
-		},
-	},
 	openSource: {
 		eyebrow: 'Open source',
 		title: 'Open source. Soon.',
@@ -141,7 +127,7 @@ export const en = {
 		cta: 'Follow on GitHub',
 	},
 	footer: {
-		tagline: 'A native, privacy-first browser for macOS.',
+		tagline: 'A privacy-first browser for macOS.',
 		noTracking: 'This site uses no cookies, no trackers and nothing from third parties.',
 		trademarks:
 			'Product names mentioned here are trademarks of their respective owners. Arrow is an independent project and is not affiliated with them.',
