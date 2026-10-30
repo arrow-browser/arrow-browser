@@ -135,6 +135,10 @@ jobs:
           bin="$(cygpath -u "$(swift build --show-bin-path)")"
           # CEF's bootstrap loads the DLL named after it and sandboxes it.
           cp ../../Vendor/cef/Release/bootstrapc.exe "$bin/cef-shell-sandboxed.exe"
+          # Sandboxed processes do not look for DLLs in PATH: install the
+          # Swift runtime next to the executable, as an installer would.
+          runtime="$(dirname "$(cygpath -u "$(where.exe swiftCore.dll | head -1 | tr -d '\r')")")"
+          cp "$runtime"/*.dll "$bin/"
           "$bin/cef-shell-sandboxed.exe" --smoke | tee output.txt
           grep -q "sandbox: on" output.txt
       - name: Show Chromium's log
