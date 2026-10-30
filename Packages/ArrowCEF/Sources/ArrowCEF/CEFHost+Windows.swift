@@ -51,7 +51,7 @@ public final class CEFHostWindow {
 
     /// Destroys the browser's window, which completes the browser's close.
     func destroyBrowserView() {
-        while let child = GetWindow(handle, UINT(GW_CHILD)), DestroyWindow(child).boolValue {}
+        while let child = GetWindow(handle, UINT(GW_CHILD)), DestroyWindow(child) {}
     }
 
     func leaveParkingLot() {}
@@ -114,7 +114,8 @@ extension cef_window_info_t {
     static func topLevel(bounds: cef_rect_t) -> cef_window_info_t {
         var info = cef_window_info_t()
         info.size = MemoryLayout<cef_window_info_t>.size
-        info.style = DWORD(WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | WS_CLIPSIBLINGS | WS_VISIBLE)
+        // WS_OVERLAPPEDWINDOW is imported as UInt32, the other styles as Int32.
+        info.style = DWORD(WS_OVERLAPPEDWINDOW) | DWORD(WS_CLIPCHILDREN | WS_CLIPSIBLINGS | WS_VISIBLE)
         info.bounds = bounds
         info.runtime_style = CEF_RUNTIME_STYLE_ALLOY
         return info
