@@ -1,4 +1,5 @@
 import AppKit
+import ArrowCore
 import ArrowKit
 import SwiftUI
 
@@ -237,7 +238,7 @@ private struct LittleArrowLauncher: View {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 11.5, weight: .bold))
                     .frame(width: 24)
-                TextField(model.placeholder, text: $model.text, selection: $model.selection)
+                TextField(model.placeholder, text: $model.text, selection: $model.textSelection)
                     .textFieldStyle(.plain)
                     .font(.system(size: 18, weight: .medium))
                     .focused($isFocused)

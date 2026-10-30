@@ -1,13 +1,15 @@
-import AppKit
 import ArrowKit
+import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import Observation
-import SwiftUI
 
 /// State of an open command bar: input, rows and keyboard selection.
 @MainActor
 @Observable
-final class CommandBarModel {
-    enum Mode: Equatable {
+public final class CommandBarModel {
+    public enum Mode: Equatable {
         /// Cmd+T: results open in a new tab.
         case newTab
         /// Cmd+L / URL field: results replace the current tab's page.
@@ -16,48 +18,60 @@ final class CommandBarModel {
         case splitPane(besideTabID: UUID)
     }
 
-    enum Anchor {
+    public enum Anchor {
         case center
         /// Dropped down from the sidebar URL field.
         case sidebar
     }
 
-    let mode: Mode
-    let anchor: Anchor
+    public let mode: Mode
+    public let anchor: Anchor
     /// Content of the field: what was typed, plus the inline completion.
-    var text: String {
+    public var text: String {
         didSet { if text != oldValue { textDidChange() } }
     }
 
-    /// Selection of the field; covers the completed part of `text`.
-    var selection: TextSelection?
+    /// Selection of the field (an empty range is the insertion point); covers
+    /// the completed part of `text`.
+    public var selectedRange: Range<String.Index>?
     /// What the user typed, without the completion.
-    private(set) var typedText: String
-    private(set) var completion: CommandBarCompletion?
+    public private(set) var typedText: String
+    public private(set) var completion: CommandBarCompletion?
     @ObservationIgnored private var isCompleting = false
 
-    var activeSiteSearch: SiteSearch? {
+    public var activeSiteSearch: SiteSearch? {
         didSet { refresh() }
     }
 
-    private(set) var items: [CommandBarItem] = []
-    var selectedIndex = 0
+    public private(set) var items: [CommandBarItem] = []
+    public var selectedIndex = 0
 
     @ObservationIgnored private var suggestions: [String] = []
     @ObservationIgnored private var suggestionTask: Task<Void, Never>?
     @ObservationIgnored private let sources: Sources
 
     /// Data the ranking reads from the browser.
-    struct Sources {
-        var openTabs: () -> [CommandBarTab]
-        var history: () -> History
-        var commands: [CommandBarCommand]
-        var engine: () -> SearchEngine
-        var settings: () -> ArrowSettings
-        var currentTabID: UUID?
+    public struct Sources {
+        public var openTabs: () -> [CommandBarTab]
+        public var history: () -> History
+        public var commands: [CommandBarCommand]
+        public var engine: () -> SearchEngine
+        public var settings: () -> ArrowSettings
+        public var currentTabID: UUID?
+
+        public init(openTabs: @escaping () -> [CommandBarTab], history: @escaping () -> History,
+                    commands: [CommandBarCommand], engine: @escaping () -> SearchEngine,
+                    settings: @escaping () -> ArrowSettings, currentTabID: UUID?) {
+            self.openTabs = openTabs
+            self.history = history
+            self.commands = commands
+            self.engine = engine
+            self.settings = settings
+            self.currentTabID = currentTabID
+        }
     }
 
-    init(mode: Mode, anchor: Anchor, initialText: String = "", sources: Sources) {
+    public init(mode: Mode, anchor: Anchor, initialText: String = "", sources: Sources) {
         self.mode = mode
         self.anchor = anchor
         text = initialText
@@ -73,33 +87,33 @@ final class CommandBarModel {
     }
 
     /// "Search YouTube  Tab", shown at the end of the field.
-    var siteSearchHint: SiteSearch? {
+    public var siteSearchHint: SiteSearch? {
         activeSiteSearch == nil ? ranker.siteSearchHint(for: typedText) : nil
     }
 
-    var selectedItem: CommandBarItem? {
+    public var selectedItem: CommandBarItem? {
         items.indices.contains(selectedIndex) ? items[selectedIndex] : nil
     }
 
-    var placeholder: String {
+    public var placeholder: String {
         if let activeSiteSearch { return "Search \(activeSiteSearch.name)…" }
         return "Search or Enter URL…"
     }
 
-    func moveSelection(_ delta: Int) {
+    public func moveSelection(_ delta: Int) {
         guard !items.isEmpty else { return }
         selectedIndex = (selectedIndex + delta + items.count) % items.count
     }
 
     /// Tab accepts the site search hint ("youtube" + Tab → Search YouTube).
-    func acceptSiteSearchHint() -> Bool {
+    public func acceptSiteSearchHint() -> Bool {
         guard let site = siteSearchHint else { return false }
         activeSiteSearch = site
         text = ""
         return true
     }
 
-    func clearSiteSearch() {
+    public func clearSiteSearch() {
         activeSiteSearch = nil
     }
 
@@ -114,7 +128,7 @@ final class CommandBarModel {
             isCompleting = true
             text = completion.text
             isCompleting = false
-            selection = TextSelection(range: text.index(text.startIndex, offsetBy: typedText.count)..<text.endIndex)
+            selectedRange = text.index(text.startIndex, offsetBy: typedText.count)..<text.endIndex
         }
         selectedIndex = 0
         refresh()
@@ -141,7 +155,7 @@ final class CommandBarModel {
     }
 
     /// Max ▸ Instant Links: Shift-Return opens the top result of a web search.
-    var instantLinkURL: String? {
+    public var instantLinkURL: String? {
         guard sources.settings().instantLinks, activeSiteSearch == nil else { return nil }
         let query: String
         if case let .search(selected)? = selectedItem?.kind {

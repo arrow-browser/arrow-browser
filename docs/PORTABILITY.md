@@ -65,10 +65,14 @@ At `e4de7af`, Arrow is about 19,600 lines of Swift:
 ### Phase 3: shared core
 
 - Move the platform-independent part of `Model/` and `Services/` (browser
-  store, tabs, downloads, extensions, ad blocker, sync, Cast) into a SwiftPM
-  package, `ArrowCore`, that imports neither AppKit nor SwiftUI. Observation
-  ships with the Swift toolchain, so `@Observable` models can move as they are
+  store, tabs, downloads, extensions, ad blocker, sync, Cast) into
+  `ArrowCore`, a second library of the ArrowKit package that imports neither
+  AppKit nor SwiftUI. Sharing the package keeps one build per CI job (the
+  Windows job spends most of its time building BoringSSL). Observation ships
+  with the Swift toolchain, so `@Observable` models can move as they are
   (checked on Linux and Windows).
+  - Moved: `CommandBarModel`. Its field selection is a range of the text,
+    which the views convert to SwiftUI's `TextSelection`.
 - Put platform services behind protocols implemented by each app (see
   [Platform services](#platform-services)).
 - Draw the engine boundary: the model and the views talk to a browser
