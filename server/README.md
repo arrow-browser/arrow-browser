@@ -411,7 +411,7 @@ It is generated from `<data-dir>/releases/releases.json` (newest first):
   {
     "version": "120",
     "shortVersion": "1.2.0",
-    "url": "https://github.com/euskadi31/arrow-browser/releases/download/v1.2.0/Arrow-1.2.0.zip",
+    "url": "https://github.com/arrow-browser/arrow-browser/releases/download/v1.2.0/Arrow-1.2.0.zip",
     "length": 48213377,
     "edSignature": "3H1u0m...base64...==",
     "minimumSystemVersion": "14.0",
@@ -439,7 +439,7 @@ It is generated from `<data-dir>/releases/releases.json` (newest first):
       <sparkle:shortVersionString>1.2.0</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
       <description><![CDATA[<h2>What's new</h2><ul><li>Split view</li></ul>]]></description>
-      <enclosure url="https://github.com/euskadi31/arrow-browser/releases/download/v1.2.0/Arrow-1.2.0.zip" length="48213377" type="application/octet-stream" sparkle:edSignature="3H1u0m...base64...=="></enclosure>
+      <enclosure url="https://github.com/arrow-browser/arrow-browser/releases/download/v1.2.0/Arrow-1.2.0.zip" length="48213377" type="application/octet-stream" sparkle:edSignature="3H1u0m...base64...=="></enclosure>
     </item>
   </channel>
 </rss>
@@ -528,7 +528,7 @@ no external resources) and `<meta name="robots" content="noindex">`.
 ```json
 {
   "task": "tidy-tab-title",
-  "messages": [{"role": "user", "content": "Title: euskadi31/arrow-browser: An open-source Arc re-implementation\nURL: https://github.com/euskadi31/arrow-browser"}],
+  "messages": [{"role": "user", "content": "Title: arrow-browser/arrow-browser: An open-source Arc re-implementation\nURL: https://github.com/arrow-browser/arrow-browser"}],
   "stream": false,
   "maxTokens": 256
 }

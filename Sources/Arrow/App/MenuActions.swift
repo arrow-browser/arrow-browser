@@ -7,7 +7,7 @@ import SwiftUI
 /// Menu commands of Arc's menu bar that are not tied to a page: sharing,
 /// help, data restore, troubleshooting.
 extension AppDelegate: NSMenuItemValidation {
-    static let projectURL = URL(string: "https://github.com/euskadi31/arrow-browser")!
+    static let projectURL = URL(string: "https://github.com/arrow-browser/arrow-browser")!
 
     @objc func shareArrow(_ sender: Any?) {
         let controller = frontBrowserWindow()

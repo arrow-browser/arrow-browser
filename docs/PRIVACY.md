@@ -41,4 +41,4 @@ Preferences ▸ Arrow Cloud. That server is yours or someone you trust (see
 
 ## Contact
 
-Open an issue at <https://github.com/euskadi31/arrow-browser/issues>.
+Open an issue at <https://github.com/arrow-browser/arrow-browser/issues>.

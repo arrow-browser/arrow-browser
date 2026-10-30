@@ -1,4 +1,4 @@
-module github.com/euskadi31/arrow-browser/server
+module github.com/arrow-browser/arrow-browser/server
 
 go 1.27.2
 

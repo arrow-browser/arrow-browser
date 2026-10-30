@@ -13,7 +13,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/euskadi31/arrow-browser/server/internal/auth"
+	"github.com/arrow-browser/arrow-browser/server/internal/auth"
 )
 
 // fakeClient records requests and replays canned results.
@@ -170,7 +170,7 @@ func TestValidation(t *testing.T) {
 
 func TestNonStreamResponse(t *testing.T) {
 	fake := &fakeClient{result: Result{Text: "GitHub Arrow Repo", StopReason: "end_turn", Model: "claude-opus-5-5", Usage: Usage{InputTokens: 40, OutputTokens: 6}}}
-	rec := post(newMux(fake), "u1", map[string]any{"task": "tidy-tab-title", "messages": userMsg("Title: euskadi31/arrow-browser\nURL: https://github.com/euskadi31/arrow-browser")})
+	rec := post(newMux(fake), "u1", map[string]any{"task": "tidy-tab-title", "messages": userMsg("Title: arrow-browser/arrow-browser\nURL: https://github.com/arrow-browser/arrow-browser")})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d", rec.Code)
 	}

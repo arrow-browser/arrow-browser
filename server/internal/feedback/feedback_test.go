@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/euskadi31/arrow-browser/server/internal/auth"
+	"github.com/arrow-browser/arrow-browser/server/internal/auth"
 )
 
 // fakeOptionalAuth authenticates "Bearer <id>" and lets anything else through.

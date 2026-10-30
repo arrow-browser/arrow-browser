@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/euskadi31/arrow-browser/server/internal/auth"
+	"github.com/arrow-browser/arrow-browser/server/internal/auth"
 )
 
 const publicURL = "https://arrow.example"
@@ -70,7 +70,7 @@ func create(t *testing.T, mux http.Handler, user string, body any) (id, url stri
 }
 
 var spacePayload = map[string]any{"items": []map[string]string{
-	{"title": "Arrow <b>repo</b>", "url": "https://github.com/euskadi31/arrow-browser"},
+	{"title": "Arrow <b>repo</b>", "url": "https://github.com/arrow-browser/arrow-browser"},
 	{"title": "evil", "url": "javascript:alert(1)"},
 	{"title": "", "url": "http://example.com/path?q=1"},
 }}
@@ -168,7 +168,7 @@ func TestPublicPage(t *testing.T) {
 	for _, want := range []string{
 		`&lt;img src=x onerror=alert(1)&gt;`,
 		`Alice &lt;script&gt;`,
-		`href="https://github.com/euskadi31/arrow-browser"`,
+		`href="https://github.com/arrow-browser/arrow-browser"`,
 		`>example.com</a>`,
 		`href="arrowBrowser://share/` + id + `"`,
 		`Open in Arrow`,

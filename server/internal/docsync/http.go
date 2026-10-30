@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/euskadi31/arrow-browser/server/internal/auth"
-	"github.com/euskadi31/arrow-browser/server/internal/httpx"
+	"github.com/arrow-browser/arrow-browser/server/internal/auth"
+	"github.com/arrow-browser/arrow-browser/server/internal/httpx"
 )
 
 // maxPushBody bounds a push request: up to maxChanges documents, but large

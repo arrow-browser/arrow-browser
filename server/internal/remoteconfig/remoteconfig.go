@@ -13,7 +13,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/euskadi31/arrow-browser/server/internal/httpx"
+	"github.com/arrow-browser/arrow-browser/server/internal/httpx"
 )
 
 var defaultWebContentBehavior = json.RawMessage(`{"keepaliveAllowList":[` +

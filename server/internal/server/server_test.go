@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/euskadi31/arrow-browser/server/internal/ai"
-	"github.com/euskadi31/arrow-browser/server/internal/config"
+	"github.com/arrow-browser/arrow-browser/server/internal/ai"
+	"github.com/arrow-browser/arrow-browser/server/internal/config"
 )
 
 type echoAI struct{}

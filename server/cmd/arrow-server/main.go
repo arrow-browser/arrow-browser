@@ -13,9 +13,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/euskadi31/arrow-browser/server/internal/ai"
-	"github.com/euskadi31/arrow-browser/server/internal/config"
-	"github.com/euskadi31/arrow-browser/server/internal/server"
+	"github.com/arrow-browser/arrow-browser/server/internal/ai"
+	"github.com/arrow-browser/arrow-browser/server/internal/config"
+	"github.com/arrow-browser/arrow-browser/server/internal/server"
 )
 
 // version is set at build time with -ldflags "-X main.version=...".

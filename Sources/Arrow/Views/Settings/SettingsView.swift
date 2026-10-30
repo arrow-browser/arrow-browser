@@ -560,7 +560,7 @@ private struct ProfilesPane: View {
     var body: some View {
         @Bindable var store = store
         VStack(alignment: .leading, spacing: 14) {
-            PrefsText(text: "Profiles help keep your data separate across Spaces — like history, logins, cookies, and extensions. You can use any Profile across one or more Spaces. [Learn more.](https://github.com/euskadi31/arrow-browser#readme)")
+            PrefsText(text: "Profiles help keep your data separate across Spaces — like history, logins, cookies, and extensions. You can use any Profile across one or more Spaces. [Learn more.](https://github.com/arrow-browser/arrow-browser#readme)")
             HStack(alignment: .top, spacing: 10) {
                 profileList
                     .frame(width: 206)
