@@ -78,6 +78,7 @@ jobs:
         working-directory: Packages/ArrowCEF
         run: swift build --product cef-shell
       - name: Open a browser window, sandboxed
+        timeout-minutes: 5
         working-directory: Packages/ArrowCEF
         run: |
           bin="$(swift build --show-bin-path)"
@@ -111,6 +112,7 @@ jobs:
         working-directory: Packages/ArrowCEF
         run: swift build --product cef-shell
       - name: Open a browser window
+        timeout-minutes: 5
         working-directory: Packages/ArrowCEF
         shell: bash
         run: |
