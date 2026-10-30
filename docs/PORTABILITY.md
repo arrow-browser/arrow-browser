@@ -96,6 +96,9 @@ At `e4de7af`, Arrow is about 19,600 lines of Swift:
 - The engine protocols move to `ArrowEngine`, a library of the ArrowKit
   package with no dependency: the bindings implement them without building
   the model and swift-crypto.
+- The bindings move to `Packages/ArrowCEF`: `ArrowCEF` and the `CEF` Clang
+  module, used by the macOS app. The package finds the CEF headers in
+  `Vendor/cef`, or in `CEF_ROOT`.
 - Host browsers in the native window handle of each platform: `NSView`,
   `HWND`, X11 or Wayland window.
 - Process model: Windows and Linux have no helper app bundles. Subprocesses

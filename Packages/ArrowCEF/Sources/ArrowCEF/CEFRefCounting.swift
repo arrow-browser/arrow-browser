@@ -12,37 +12,37 @@ import Synchronization
 
 /// Every ref-counted CEF struct starts with a `cef_base_ref_counted_t`.
 @inline(__always)
-func cefBase<T>(_ pointer: UnsafeMutablePointer<T>) -> UnsafeMutablePointer<cef_base_ref_counted_t> {
+public func cefBase<T>(_ pointer: UnsafeMutablePointer<T>) -> UnsafeMutablePointer<cef_base_ref_counted_t> {
     UnsafeMutableRawPointer(pointer).assumingMemoryBound(to: cef_base_ref_counted_t.self)
 }
 
 @inline(__always)
-func cefAddRef<T>(_ pointer: UnsafeMutablePointer<T>?) {
+public func cefAddRef<T>(_ pointer: UnsafeMutablePointer<T>?) {
     guard let pointer else { return }
     let base = cefBase(pointer)
     base.pointee.add_ref?(base)
 }
 
 @inline(__always)
-func cefRelease<T>(_ pointer: UnsafeMutablePointer<T>?) {
+public func cefRelease<T>(_ pointer: UnsafeMutablePointer<T>?) {
     guard let pointer else { return }
     let base = cefBase(pointer)
     _ = base.pointee.release?(base)
 }
 
 /// Owning (+1) reference to an object implemented by CEF.
-final class CefRef<T>: @unchecked Sendable {
-    let pointer: UnsafeMutablePointer<T>
+public final class CefRef<T>: @unchecked Sendable {
+    public let pointer: UnsafeMutablePointer<T>
 
     /// Takes ownership of a reference that was already added (callback
     /// argument or function return value).
-    init?(adopting pointer: UnsafeMutablePointer<T>?) {
+    public init?(adopting pointer: UnsafeMutablePointer<T>?) {
         guard let pointer else { return nil }
         self.pointer = pointer
     }
 
     /// Adds a new reference to `pointer`.
-    init?(retaining pointer: UnsafeMutablePointer<T>?) {
+    public init?(retaining pointer: UnsafeMutablePointer<T>?) {
         guard let pointer else { return nil }
         cefAddRef(pointer)
         self.pointer = pointer
@@ -54,12 +54,12 @@ final class CefRef<T>: @unchecked Sendable {
 
     /// The pointer with an extra reference, for CEF functions that take
     /// ownership of their arguments.
-    func retained() -> UnsafeMutablePointer<T> {
+    public func retained() -> UnsafeMutablePointer<T> {
         cefAddRef(pointer)
         return pointer
     }
 
-    var pointee: T { pointer.pointee }
+    public var pointee: T { pointer.pointee }
 }
 
 // MARK: - Structs implemented in Swift
@@ -99,10 +99,10 @@ private func freeHandler(_ base: UnsafeMutablePointer<cef_base_ref_counted_t>) {
 /// The Swift object holds one reference for its lifetime; CEF holds the
 /// others. Callbacks resolve their Swift owner through `owner(of:)`, which
 /// returns nil once the owner is gone.
-final class CefHandler<T>: @unchecked Sendable {
-    let pointer: UnsafeMutablePointer<T>
+public final class CefHandler<T>: @unchecked Sendable {
+    public let pointer: UnsafeMutablePointer<T>
 
-    init(owner: AnyObject, configure: (inout T) -> Void) {
+    public init(owner: AnyObject, configure: (inout T) -> Void) {
         let size = MemoryLayout<T>.size
         let offset = trailerOffset(structSize: size)
         let raw = UnsafeMutableRawPointer.allocate(byteCount: offset + MemoryLayout<UnsafeRawPointer>.size, alignment: 16)
@@ -140,13 +140,13 @@ final class CefHandler<T>: @unchecked Sendable {
 
     /// The struct with a reference for CEF (callback return values and
     /// arguments to CEF functions).
-    func retained() -> UnsafeMutablePointer<T> {
+    public func retained() -> UnsafeMutablePointer<T> {
         cefAddRef(pointer)
         return pointer
     }
 
     /// Resolves the Swift owner of a struct received as `self` in a callback.
-    static func owner<O: AnyObject>(of pointer: UnsafeMutablePointer<T>?, as _: O.Type = O.self) -> O? {
+    public static func owner<O: AnyObject>(of pointer: UnsafeMutablePointer<T>?, as _: O.Type = O.self) -> O? {
         guard let pointer else { return nil }
         return handlerBox(cefBase(pointer))?.owner as? O
     }

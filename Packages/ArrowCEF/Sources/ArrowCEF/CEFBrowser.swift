@@ -1,22 +1,22 @@
 import AppKit
-import ArrowCore
+import ArrowEngine
 import CEF
 
 /// NSView hosting a Chromium browser view. Keeps CEF's child view sized to
 /// its bounds and clips it (rounded corners of the content panel).
-final class CEFHostView: NSView {
-    override init(frame frameRect: NSRect) {
+public final class CEFHostView: NSView {
+    public override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
         layer?.masksToBounds = true
     }
 
     @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    public required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    override var isFlipped: Bool { true }
+    public override var isFlipped: Bool { true }
 
-    override func resizeSubviews(withOldSize oldSize: NSSize) {
+    public override func resizeSubviews(withOldSize oldSize: NSSize) {
         super.resizeSubviews(withOldSize: oldSize)
         for subview in subviews where subview.frame != bounds {
             subview.frame = bounds
@@ -30,7 +30,7 @@ final class CEFHostView: NSView {
 /// and while it renders in the background (tabs opened in the background,
 /// switched-away tabs). Views are parked here instead of being orphaned.
 @MainActor
-enum CEFParkingLot {
+public enum CEFParkingLot {
     private static let window: NSWindow = {
         let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: 1280, height: 800),
                               styleMask: [.borderless], backing: .buffered, defer: false)
@@ -39,7 +39,7 @@ enum CEFParkingLot {
         return window
     }()
 
-    static func park(_ view: NSView) {
+    public static func park(_ view: NSView) {
         guard let contentView = window.contentView, view.superview !== contentView else { return }
         let size = view.frame.size == .zero ? contentView.bounds.size : view.frame.size
         view.removeFromSuperview()
@@ -47,7 +47,7 @@ enum CEFParkingLot {
         contentView.addSubview(view)
     }
 
-    static func isParked(_ view: NSView) -> Bool {
+    public static func isParked(_ view: NSView) -> Bool {
         view.superview === window.contentView
     }
 }
@@ -56,14 +56,14 @@ enum CEFParkingLot {
 ///
 /// Created lazily: `create(url:)` instantiates the native browser inside
 /// `hostView`. All public API must be used on the main thread.
-final class CEFBrowser: @unchecked Sendable {
-    let hostView: CEFHostView
-    let requestContext: CEFRequestContext
-    @MainActor weak var delegate: (any BrowserEngineDelegate)?
+public final class CEFBrowser: @unchecked Sendable {
+    public let hostView: CEFHostView
+    public let requestContext: CEFRequestContext
+    @MainActor public weak var delegate: (any BrowserEngineDelegate)?
 
-    @MainActor private(set) var browser: CefRef<cef_browser_t>?
-    @MainActor private(set) var isClosing = false
-    @MainActor private(set) var isClosed = false
+    @MainActor public private(set) var browser: CefRef<cef_browser_t>?
+    @MainActor public private(set) var isClosing = false
+    @MainActor public private(set) var isClosed = false
     /// True between `on_before_popup` and `on_after_created`.
     @MainActor private var isPendingPopup = false
 
@@ -85,7 +85,7 @@ final class CEFBrowser: @unchecked Sendable {
     @MainActor private var lastContextMenuParams: ContextMenuParams?
 
     @MainActor
-    init(requestContext: CEFRequestContext, frame: CGRect = CGRect(x: 0, y: 0, width: 800, height: 600)) {
+    public init(requestContext: CEFRequestContext, frame: CGRect = CGRect(x: 0, y: 0, width: 800, height: 600)) {
         self.requestContext = requestContext
         hostView = CEFHostView(frame: frame)
         buildHandlers()
@@ -93,11 +93,11 @@ final class CEFBrowser: @unchecked Sendable {
 
     // MARK: - Lifecycle
 
-    @MainActor var isCreated: Bool { browser != nil }
+    @MainActor public var isCreated: Bool { browser != nil }
 
     /// Creates the native browser and starts loading `url`.
     @MainActor
-    func create(url: String) {
+    public func create(url: String) {
         guard browser == nil, !isPendingPopup, !isClosed else { return }
         var windowInfo = makeWindowInfo()
         var settings = cef_browser_settings_t()
@@ -139,7 +139,7 @@ final class CEFBrowser: @unchecked Sendable {
 
     /// Closes the browser, running the page's unload handlers unless `force`.
     @MainActor
-    func close(force: Bool) {
+    public func close(force: Bool) {
         guard !isClosed, !(isClosing && !force) else { return }
         isClosing = true
         Self.closing[ObjectIdentifier(self)] = self
@@ -172,23 +172,23 @@ final class CEFBrowser: @unchecked Sendable {
 
     // MARK: - Navigation
 
-    @MainActor var host: CefRef<cef_browser_host_t>? {
+    @MainActor public var host: CefRef<cef_browser_host_t>? {
         guard let browser else { return nil }
         return CefRef(adopting: browser.pointer.pointee.get_host?(browser.pointer))
     }
 
-    @MainActor var mainFrame: CefRef<cef_frame_t>? {
+    @MainActor public var mainFrame: CefRef<cef_frame_t>? {
         guard let browser else { return nil }
         return CefRef(adopting: browser.pointer.pointee.get_main_frame?(browser.pointer))
     }
 
-    @MainActor var identifier: Int32? {
+    @MainActor public var identifier: Int32? {
         guard let browser else { return nil }
         return browser.pointer.pointee.get_identifier?(browser.pointer)
     }
 
     @MainActor
-    func load(url: String) {
+    public func load(url: String) {
         guard let frame = mainFrame else {
             create(url: url)
             return
@@ -196,23 +196,23 @@ final class CEFBrowser: @unchecked Sendable {
         withCefString(url) { frame.pointer.pointee.load_url?(frame.pointer, $0) }
     }
 
-    @MainActor func goBack() { browser.map { $0.pointer.pointee.go_back?($0.pointer) } }
-    @MainActor func goForward() { browser.map { $0.pointer.pointee.go_forward?($0.pointer) } }
-    @MainActor func reload() { browser.map { $0.pointer.pointee.reload?($0.pointer) } }
-    @MainActor func reloadIgnoringCache() { browser.map { $0.pointer.pointee.reload_ignore_cache?($0.pointer) } }
-    @MainActor func stopLoading() { browser.map { $0.pointer.pointee.stop_load?($0.pointer) } }
+    @MainActor public func goBack() { browser.map { $0.pointer.pointee.go_back?($0.pointer) } }
+    @MainActor public func goForward() { browser.map { $0.pointer.pointee.go_forward?($0.pointer) } }
+    @MainActor public func reload() { browser.map { $0.pointer.pointee.reload?($0.pointer) } }
+    @MainActor public func reloadIgnoringCache() { browser.map { $0.pointer.pointee.reload_ignore_cache?($0.pointer) } }
+    @MainActor public func stopLoading() { browser.map { $0.pointer.pointee.stop_load?($0.pointer) } }
 
-    @MainActor var canGoBack: Bool { browser.map { $0.pointer.pointee.can_go_back?($0.pointer) != 0 } ?? false }
-    @MainActor var canGoForward: Bool { browser.map { $0.pointer.pointee.can_go_forward?($0.pointer) != 0 } ?? false }
+    @MainActor public var canGoBack: Bool { browser.map { $0.pointer.pointee.can_go_back?($0.pointer) != 0 } ?? false }
+    @MainActor public var canGoForward: Bool { browser.map { $0.pointer.pointee.can_go_forward?($0.pointer) != 0 } ?? false }
 
     @MainActor
-    var currentURL: String? {
+    public var currentURL: String? {
         guard let frame = mainFrame else { return nil }
         return String(cefUserFree: frame.pointer.pointee.get_url?(frame.pointer))
     }
 
     @MainActor
-    func executeJavaScript(_ code: String, scriptURL: String) {
+    public func executeJavaScript(_ code: String, scriptURL: String) {
         guard let frame = mainFrame else { return }
         withCefString(code) { code in
             withCefString(scriptURL) { url in
@@ -221,29 +221,29 @@ final class CEFBrowser: @unchecked Sendable {
         }
     }
 
-    @MainActor func viewSource() { mainFrame.map { $0.pointer.pointee.view_source?($0.pointer) } }
+    @MainActor public func viewSource() { mainFrame.map { $0.pointer.pointee.view_source?($0.pointer) } }
 
     // MARK: - Host operations
 
     @MainActor
-    func setFocus(_ focused: Bool) {
+    public func setFocus(_ focused: Bool) {
         host.map { $0.pointer.pointee.set_focus?($0.pointer, focused ? 1 : 0) }
     }
 
     @MainActor
-    var zoomLevel: Double {
+    public var zoomLevel: Double {
         get { host.map { $0.pointer.pointee.get_zoom_level?($0.pointer) ?? 0 } ?? 0 }
         set { host.map { $0.pointer.pointee.set_zoom_level?($0.pointer, newValue) } }
     }
 
     @MainActor
-    var isAudioMuted: Bool {
+    public var isAudioMuted: Bool {
         get { host.map { $0.pointer.pointee.is_audio_muted?($0.pointer) != 0 } ?? false }
         set { host.map { $0.pointer.pointee.set_audio_muted?($0.pointer, newValue ? 1 : 0) } }
     }
 
     @MainActor
-    func find(_ text: String, forward: Bool, findNext: Bool) {
+    public func find(_ text: String, forward: Bool, findNext: Bool) {
         guard let host else { return }
         withCefString(text) { text in
             host.pointer.pointee.find?(host.pointer, text, forward ? 1 : 0, 0, findNext ? 1 : 0)
@@ -251,13 +251,13 @@ final class CEFBrowser: @unchecked Sendable {
     }
 
     @MainActor
-    func stopFinding() {
+    public func stopFinding() {
         host.map { $0.pointer.pointee.stop_finding?($0.pointer, 1) }
     }
 
     @MainActor
     /// Opens Developer Tools, on `panel` ("console", "network"…) when given.
-    func showDevTools(inspectAt point: CGPoint?, panel: String?) {
+    public func showDevTools(inspectAt point: CGPoint?, panel: String?) {
         guard let host else { return }
         let client = panel.map { CEFDevToolsPanel.client(showing: $0) }
         var windowInfo = cef_window_info_t()
@@ -275,23 +275,23 @@ final class CEFBrowser: @unchecked Sendable {
     }
 
     @MainActor
-    var hasDevTools: Bool { host.map { $0.pointer.pointee.has_dev_tools?($0.pointer) != 0 } ?? false }
+    public var hasDevTools: Bool { host.map { $0.pointer.pointee.has_dev_tools?($0.pointer) != 0 } ?? false }
 
     @MainActor
-    func closeDevTools() { host.map { $0.pointer.pointee.close_dev_tools?($0.pointer) } }
+    public func closeDevTools() { host.map { $0.pointer.pointee.close_dev_tools?($0.pointer) } }
 
     @MainActor
-    func print() { host.map { $0.pointer.pointee.print?($0.pointer) } }
+    public func print() { host.map { $0.pointer.pointee.print?($0.pointer) } }
 
     @MainActor
-    func startDownload(url: String) {
+    public func startDownload(url: String) {
         guard let host else { return }
         withCefString(url) { host.pointer.pointee.start_download?(host.pointer, $0) }
     }
 
     /// Reports the page's preferred size through `didAutoResize`.
     @MainActor
-    func enableAutoResize(min: CGSize, max: CGSize) {
+    public func enableAutoResize(min: CGSize, max: CGSize) {
         guard let host else { return }
         var minimum = cef_size_t(width: Int32(min.width), height: Int32(min.height))
         var maximum = cef_size_t(width: Int32(max.width), height: Int32(max.height))
@@ -299,12 +299,12 @@ final class CEFBrowser: @unchecked Sendable {
     }
 
     @MainActor
-    func exitFullscreen() {
+    public func exitFullscreen() {
         host.map { $0.pointer.pointee.exit_fullscreen?($0.pointer, 1) }
     }
 
     @MainActor
-    func notifyMoveOrResizeStarted() {
+    public func notifyMoveOrResizeStarted() {
         host.map { $0.pointer.pointee.notify_move_or_resize_started?($0.pointer) }
     }
 
@@ -312,7 +312,7 @@ final class CEFBrowser: @unchecked Sendable {
 
     /// Executes a DevTools protocol method and returns its JSON result.
     @MainActor
-    func devToolsMethod(_ method: String, params: [String: Any]) async -> [String: Any]? {
+    public func devToolsMethod(_ method: String, params: [String: Any]) async -> [String: Any]? {
         guard let host else { return nil }
         let messageID = nextMessageID
         nextMessageID += 1
@@ -333,7 +333,7 @@ final class CEFBrowser: @unchecked Sendable {
 
     /// Evaluates JavaScript in the page and returns its JSON-compatible value.
     @MainActor
-    func evaluateJavaScript(_ expression: String) async -> Any? {
+    public func evaluateJavaScript(_ expression: String) async -> Any? {
         let result = await devToolsMethod("Runtime.evaluate", params: [
             "expression": expression,
             "returnByValue": true,
@@ -344,7 +344,7 @@ final class CEFBrowser: @unchecked Sendable {
 
     /// PNG screenshot of the visible page (or of `clip`, in CSS pixels).
     @MainActor
-    func captureScreenshot(clip: CGRect?) async -> Data? {
+    public func captureScreenshot(clip: CGRect?) async -> Data? {
         var params: [String: Any] = ["format": "png", "captureBeyondViewport": false]
         if let clip {
             params["clip"] = ["x": clip.minX, "y": clip.minY, "width": clip.width, "height": clip.height, "scale": 1]
@@ -358,7 +358,7 @@ final class CEFBrowser: @unchecked Sendable {
 
     /// Downloads an image (favicon…) using this browser's profile.
     @MainActor
-    func downloadImage(url: String, isFavicon: Bool, maxSize: Int) async -> Data? {
+    public func downloadImage(url: String, isFavicon: Bool, maxSize: Int) async -> Data? {
         guard let host else { return nil }
         return await withCheckedContinuation { continuation in
             let request = CEFImageRequest()

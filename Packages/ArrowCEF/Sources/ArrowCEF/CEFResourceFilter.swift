@@ -1,11 +1,11 @@
-import ArrowCore
+import ArrowEngine
 import CEF
 import Synchronization
 
 /// Blocks subresource requests (ad blocker). Consulted on Chromium's IO
 /// thread, so the decision function is swapped atomically.
-final class CEFResourceFilter: Sendable {
-    static let shared = CEFResourceFilter()
+public final class CEFResourceFilter: Sendable {
+    public static let shared = CEFResourceFilter()
 
     private let decision = Mutex<ResourceFilter.Decision?>(nil)
     private let blockedCount = Atomic<Int>(0)
@@ -26,16 +26,16 @@ final class CEFResourceFilter: Sendable {
     }
 
     /// Installs (or removes, with nil) the blocking decision.
-    func setDecision(_ decide: ResourceFilter.Decision?) {
+    public func setDecision(_ decide: ResourceFilter.Decision?) {
         decision.withLock { $0 = decide }
     }
 
     /// Number of requests blocked since launch.
-    var blocked: Int { blockedCount.load(ordering: .relaxed) }
+    public var blocked: Int { blockedCount.load(ordering: .relaxed) }
 
     /// Answer to `get_resource_request_handler`: a cancelling handler for
     /// blocked requests, nil (default handling) otherwise.
-    func resourceRequestHandler(url: String, initiator: String, isNavigation: Bool) -> UnsafeMutablePointer<cef_resource_request_handler_t>? {
+    public func resourceRequestHandler(url: String, initiator: String, isNavigation: Bool) -> UnsafeMutablePointer<cef_resource_request_handler_t>? {
         guard let decide = decision.withLock({ $0 }),
               decide(url, initiator.isEmpty ? nil : initiator, isNavigation) else { return nil }
         return cancellingHandler.retained()

@@ -1,4 +1,4 @@
-import ArrowCore
+import ArrowEngine
 import CEF
 import Foundation
 
@@ -24,9 +24,9 @@ private struct CEFMediaSink: Sendable {
 }
 
 /// A connection to an app launched on a device.
-final class CEFMediaRoute: @unchecked Sendable {
-    let id: String
-    let sinkID: String
+public final class CEFMediaRoute: @unchecked Sendable {
+    public let id: String
+    public let sinkID: String
     private let ref: CefRef<cef_media_route_t>
 
     fileprivate init(_ ref: CefRef<cef_media_route_t>) {
@@ -37,13 +37,13 @@ final class CEFMediaRoute: @unchecked Sendable {
     }
 
     /// Sends a message to the app (JSON for Cast apps).
-    func send(_ message: String) {
+    public func send(_ message: String) {
         var bytes = Array(message.utf8)
         ref.pointee.send_route_message?(ref.pointer, &bytes, bytes.count)
     }
 
     /// Stops the app on the device.
-    func terminate() {
+    public func terminate() {
         ref.pointee.terminate?(ref.pointer)
     }
 }
@@ -52,10 +52,10 @@ final class CEFMediaRoute: @unchecked Sendable {
 /// runs only while `startDiscovery()` is in effect, as in Chrome, where it
 /// starts when the Cast dialog opens.
 @MainActor
-final class CEFMediaRouter {
-    var onSinks: (([MediaSink]) -> Void)?
-    var onRouteState: ((_ routeID: String, MediaRouteState) -> Void)?
-    var onRouteMessage: ((_ routeID: String, String) -> Void)?
+public final class CEFMediaRouter {
+    public var onSinks: (([MediaSink]) -> Void)?
+    public var onRouteState: ((_ routeID: String, MediaRouteState) -> Void)?
+    public var onRouteMessage: ((_ routeID: String, String) -> Void)?
 
     private let ref: CefRef<cef_media_router_t>
     /// CEF objects of the last reported devices, by sink ID.
@@ -64,15 +64,15 @@ final class CEFMediaRouter {
     private var registration: CefRef<cef_registration_t>?
     private var pendingRoutes: [ObjectIdentifier: RouteRequest] = [:]
 
-    init?(context: CEFRequestContext) {
+    public init?(context: CEFRequestContext) {
         let context = context.ref.pointer
         guard let router = CefRef(adopting: context.pointee.get_media_router?(context, nil)) else { return nil }
         ref = router
     }
 
-    var isDiscovering: Bool { registration != nil }
+    public var isDiscovering: Bool { registration != nil }
 
-    func startDiscovery() {
+    public func startDiscovery() {
         if registration == nil {
             let observer = observer ?? makeObserver()
             self.observer = observer
@@ -82,12 +82,12 @@ final class CEFMediaRouter {
     }
 
     /// Stops discovery and the observer callbacks (routes stay up).
-    func stopDiscovery() {
+    public func stopDiscovery() {
         registration = nil
     }
 
     /// Launches the app of `sourceURN` ("cast:<appId>?clientId=…") on `sink`.
-    func createRoute(sourceURN: String, sink: MediaSink) async throws(MediaRouteError) -> any MediaRoute {
+    public func createRoute(sourceURN: String, sink: MediaSink) async throws(MediaRouteError) -> any MediaRoute {
         guard let sinkRef = sinkRefs[sink.id] else {
             throw MediaRouteError(description: "The device is no longer available.")
         }

@@ -1,12 +1,12 @@
-import ArrowCore
+import ArrowEngine
 import CEF
 import Foundation
 
-// CEF behind ArrowCore's engine protocols, and CEF's types converted to the
+// CEF behind ArrowEngine's protocols, and CEF's types converted to the
 // engine-neutral ones.
 
 extension WindowOpenDisposition {
-    init(_ disposition: cef_window_open_disposition_t) {
+    public init(_ disposition: cef_window_open_disposition_t) {
         switch disposition {
         case CEF_WOD_CURRENT_TAB, CEF_WOD_SINGLETON_TAB, CEF_WOD_SWITCH_TO_TAB: self = .currentTab
         case CEF_WOD_NEW_FOREGROUND_TAB: self = .newForegroundTab
@@ -19,7 +19,7 @@ extension WindowOpenDisposition {
 }
 
 extension PopupFeatures {
-    init(_ features: cef_popup_features_t?) {
+    public init(_ features: cef_popup_features_t?) {
         guard let features else {
             self.init(frame: nil, isPopup: false)
             return
@@ -34,26 +34,26 @@ extension PopupFeatures {
 }
 
 extension CEFBrowser: BrowserEngine {
-    var context: any BrowsingContext { requestContext }
+    public var context: any BrowsingContext { requestContext }
 }
 
 extension CEFRequestContext: BrowsingContext {
-    func makeBrowser() -> any BrowserEngine {
+    public func makeBrowser() -> any BrowserEngine {
         CEFBrowser(requestContext: self)
     }
 
-    func makeMediaRouter() -> (any MediaRouter)? {
+    public func makeMediaRouter() -> (any MediaRouter)? {
         CEFMediaRouter(context: self)
     }
 }
 
 extension CEFRuntime: EngineRuntime {
-    var chromiumVersion: String { CEFVersion.chromium }
-    func defaultContext() -> any BrowsingContext { CEFRequestContext.global() }
-    func persistentContext(path: URL) -> any BrowsingContext { CEFRequestContext.persistent(path: path) }
-    func incognitoContext() -> any BrowsingContext { CEFRequestContext.incognito() }
-    var downloads: any DownloadCenter { CEFDownloadCenter.shared }
-    var resourceFilter: any ResourceFilter { CEFResourceFilter.shared }
+    public var chromiumVersion: String { CEFVersion.chromium }
+    public func defaultContext() -> any BrowsingContext { CEFRequestContext.global() }
+    public func persistentContext(path: URL) -> any BrowsingContext { CEFRequestContext.persistent(path: path) }
+    public func incognitoContext() -> any BrowsingContext { CEFRequestContext.incognito() }
+    public var downloads: any DownloadCenter { CEFDownloadCenter.shared }
+    public var resourceFilter: any ResourceFilter { CEFResourceFilter.shared }
 }
 
 extension CEFDownloadCenter: DownloadCenter {}
@@ -63,14 +63,3 @@ extension CEFResourceFilter: ResourceFilter {}
 extension CEFMediaRoute: MediaRoute {}
 
 extension CEFMediaRouter: MediaRouter {}
-
-extension BrowserStore {
-    /// The CEF request context of a profile, for macOS code that drives CEF
-    /// directly (popups, site settings).
-    func cefContext(for profileID: UUID) -> CEFRequestContext {
-        guard let context = requestContext(for: profileID) as? CEFRequestContext else {
-            preconditionFailure("The macOS app only runs CEF")
-        }
-        return context
-    }
-}

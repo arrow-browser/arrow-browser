@@ -89,12 +89,10 @@ Sparkle does.
 
 | Path | Contents |
 |---|---|
-| `Sources/CEF` | Clang module exposing CEF's C headers to Swift |
-| `Sources/Arrow/CEF` | Swift layer over the CEF C API: runtime, browsers, handlers, ref counting |
-| `Sources/Arrow/Model` | App state: `BrowserStore`, `WebTab`, `WindowState`, command bar |
 | `Sources/Arrow/Views` | SwiftUI views: sidebar, content, command bar, library, settings… |
-| `Sources/Arrow/Services` | Downloads, favicons, extensions, import, updates, Arrow Cloud client |
+| `Sources/Arrow/Services` | macOS services: Keychain, global shortcut, import from other browsers, updates, media library |
 | `Sources/ArrowHelper` | Chromium sub-process entry point (renderer, GPU…) |
+| `Packages/ArrowCEF` | Swift layer over the CEF C API (runtime, browsers, handlers, ref counting) and the `CEF` Clang module exposing its headers |
 | `Packages/ArrowKit` | Engine-independent model: spaces, tabs, themes, URL parsing, history, boosts; `ArrowCore`, the app state shared by every platform; `ArrowEngine`, the protocols it uses to drive the engine |
 | `server/` | Go server replacing Arc's cloud services |
 | `docs/` | [Architecture](docs/ARCHITECTURE.md), [feature parity](docs/FEATURES.md), [Arc services](docs/ARC_SERVICES.md), [portability](docs/PORTABILITY.md) |

@@ -4,7 +4,7 @@ import Foundation
 /// Client of a Developer Tools window that selects one of its panels once
 /// the frontend has loaded (`DevToolsAPI.showPanel`, the embedder API of
 /// Chrome's DevTools).
-final class CEFDevToolsPanel: @unchecked Sendable {
+public final class CEFDevToolsPanel: @unchecked Sendable {
     private let panel: String
     private var client: CefHandler<cef_client_t>!
     private var loadHandler: CefHandler<cef_load_handler_t>!
@@ -12,7 +12,7 @@ final class CEFDevToolsPanel: @unchecked Sendable {
     @MainActor private static var pending: [CEFDevToolsPanel] = []
 
     @MainActor
-    static func client(showing panel: String) -> UnsafeMutablePointer<cef_client_t> {
+    public static func client(showing panel: String) -> UnsafeMutablePointer<cef_client_t> {
         let opener = CEFDevToolsPanel(panel: panel)
         pending.append(opener)
         return opener.client.retained()
