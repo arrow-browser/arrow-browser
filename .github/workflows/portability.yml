@@ -1,5 +1,5 @@
 # Keeps Arrow's shared code building and tested outside macOS
-# (docs/PORTABILITY.md). Windows joins in phase 2.
+# (docs/PORTABILITY.md). Both jobs use the same Swift release.
 name: Portability
 
 on:
@@ -25,6 +25,23 @@ jobs:
       run:
         working-directory: Packages/ArrowKit
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: swift test
+
+  arrowkit-windows:
+    name: ArrowKit on Windows
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: Packages/ArrowKit
+    steps:
+      - uses: compnerd/gha-setup-swift@9ff1ee4c44888c5817fc14d1b257ac8cabb4935f # v0.5.1
+        with:
+          swift-version: swift-6.4.1-release
+          swift-build: 6.4.1-RELEASE
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
