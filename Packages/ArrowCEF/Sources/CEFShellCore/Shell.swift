@@ -13,13 +13,15 @@ final class Shell: BrowserEngineDelegate {
         + "<title>Arrow CEF shell</title><h1>Arrow</h1><p>Chromium, embedded with ArrowCEF.</p>"
         .addingPercentEncoding(withAllowedCharacters: .alphanumerics)!
 
-    private let smoke: Bool
+    let smoke: Bool
+    private let sandboxed: Bool
     private let browser: CEFBrowser
     private var window: ShellWindow?
     private(set) var succeeded = false
 
-    init(smoke: Bool) {
+    init(smoke: Bool, sandboxed: Bool) {
         self.smoke = smoke
+        self.sandboxed = sandboxed
         browser = CEFBrowser(requestContext: .global(), frame: CGRect(x: 0, y: 0, width: 1024, height: 768))
         browser.delegate = self
     }
@@ -44,10 +46,19 @@ final class Shell: BrowserEngineDelegate {
         Task {
             // A DevTools round trip, which also checks that main actor jobs run.
             let title = await browser.evaluateJavaScript("document.title")
-            print("cef-shell: loaded \(url.prefix(60)) (HTTP \(httpStatusCode)), title: \(title.map { "\($0)" } ?? "none")")
+            print("cef-shell: loaded \(url.prefix(60)) (HTTP \(httpStatusCode)), title: \(title.map { "\($0)" } ?? "none"), "
+                + "sandbox: \(sandboxed ? "on" : "off")")
             succeeded = title != nil
             browser.close(force: true)
         }
+    }
+
+    func browser(_ engine: any BrowserEngine, didFailLoad url: String, errorCode: Int, errorText: String) {
+        print("cef-shell: \(url.prefix(60)) failed to load: \(errorText) (\(errorCode))")
+    }
+
+    func browser(_ engine: any BrowserEngine, rendererDidTerminate status: TerminationStatus) {
+        print("cef-shell: the renderer process ended: \(status)")
     }
 
     func browserDidClose(_ engine: any BrowserEngine) {

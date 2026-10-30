@@ -115,14 +115,17 @@ At `e4de7af`, Arrow is about 19,600 lines of Swift:
     where unprivileged user namespaces are not available. CI runs the browser
     sandboxed.
   - Windows: CEF no longer ships `cef_sandbox.lib`. A sandboxed app is a DLL
-    loaded by CEF's `bootstrap.exe`, which hands the sandbox to
-    `CEFRuntime.initialize(sandboxInfo:)`; without it, subprocesses run
-    unsandboxed. Packaging the Windows app that way is part of phase 5.
+    loaded by CEF's bootstrap executable, renamed after it, which hands the
+    sandbox to `CEFRuntime.executeProcess(sandboxInfo:)` and
+    `initialize(sandboxInfo:)`; without it, subprocesses run unsandboxed.
+    `cef-shell-sandboxed.dll` is `cef-shell` built that way, for
+    `bootstrapc.exe`; CI runs both. Sandboxed processes do not look for DLLs
+    in `PATH`, so the Swift runtime DLLs must sit next to the executable.
 - `scripts/fetch-cef.sh` fetches the distribution of the machine (macOS,
   Windows or Linux, x64 or arm64); `scripts/stage-cef.sh` installs the CEF
   runtime next to a Windows or Linux executable.
 - `cef-shell`, in `Packages/ArrowCEF`, opens a window with one browser. CI
-  builds it and runs it on Linux (under Xvfb, sandboxed) and on Windows.
+  builds it and runs it, sandboxed, on Linux (under Xvfb) and on Windows.
 
 Done when a window with one CEF browser runs on Windows and Linux.
 
@@ -137,8 +140,10 @@ Done when a window with one CEF browser runs on Windows and Linux.
 - Command bar: open Windows file paths (`C:\…`, `\\server\share`) typed in
   it, as `URLInput` does for `/…` and `~/…`.
 - Build with SwiftPM (CMake where SwiftPM falls short), ship an installer.
-- Sandbox: build the app as a DLL loaded by CEF's `bootstrap.exe`, renamed
-  after the app, which passes the sandbox to `CEFRuntime.initialize`.
+- Sandbox: ship the app as a DLL exporting `RunWinMain`, loaded by CEF's
+  `bootstrap.exe` renamed after it, as `cef-shell-sandboxed` does with
+  `bootstrapc.exe`. The installer puts the Swift runtime DLLs next to the
+  executable and signs the executable and the DLL.
 - Updates reuse ArrowKit's appcast parser and EdDSA check; only the install
   step is Windows-specific.
 
