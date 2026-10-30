@@ -133,8 +133,19 @@ Done when a window with one CEF browser runs on Windows and Linux.
 
 - WinUI 3 through swift-winrt. The Browser Company archived its prebuilt
   binding packages (`swift-winui`, `swift-windowsappsdk`) and recommends
-  generating your own projections with swift-winrt: Arrow generates and
-  versions the subset of WinUI and the Windows App SDK it uses.
+  generating your own projections with swift-winrt: Arrow versions the list
+  of WinUI and Windows App SDK types it uses (`Windows/projections.json`) and
+  generates their projections before building.
+- Started in [`Windows/`](../Windows/README.md): a WinUI window with one
+  browser under a toolbar, sandboxed, run by CI.
+  - The browser is a child window of the WinUI window's, kept over the area
+    the XAML layout leaves it.
+  - WinUI runs the message loop. CEF's external message pump runs its work
+    from a hidden window's messages and timer, so it also runs in modal loops
+    (moving, resizing a window), and runs the main queue.
+  - The app is unpackaged: it loads the Windows App SDK runtime, a framework
+    package installed by its redistributable, through the SDK's
+    bootstrapper.
 - Rebuild the UI of the macOS app: sidebar, spaces, command bar, split view,
   Peek, Library, settings.
 - Command bar: open Windows file paths (`C:\…`, `\\server\share`) typed in
