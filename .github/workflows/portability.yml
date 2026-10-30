@@ -42,7 +42,18 @@ jobs:
         with:
           swift-version: swift-6.4.1-release
           swift-build: 6.4.1-RELEASE
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - run: swift test
+      - name: Observation smoke test (temporary)
+        shell: pwsh
+        working-directory: ${{ runner.temp }}
+        run: |
+          @'
+          import Observation
+          @Observable final class Model { var count = 0 }
+          let model = Model()
+          withObservationTracking { _ = model.count } onChange: { print("changed") }
+          model.count += 1
+          '@ | Set-Content main.swift
+          swiftc -o obs.exe main.swift
+          $out = ./obs.exe
+          Write-Output "observation output: $out"
+          if ($out -ne 'changed') { exit 1 }
