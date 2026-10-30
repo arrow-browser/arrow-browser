@@ -90,6 +90,9 @@ jobs:
           useradd --create-home shell
           runuser -u shell -- xvfb-run -a "$bin/cef-shell" --smoke | tee output.txt
           grep -q "sandbox: on" output.txt
+      - name: Show Chromium's log
+        if: failure()
+        run: cat /tmp/arrow-cef-shell/Logs/chromium.log || true
 
   arrowcef-windows:
     name: ArrowCEF on Windows
@@ -134,3 +137,7 @@ jobs:
           cp ../../Vendor/cef/Release/bootstrapc.exe "$bin/cef-shell-sandboxed.exe"
           "$bin/cef-shell-sandboxed.exe" --smoke | tee output.txt
           grep -q "sandbox: on" output.txt
+      - name: Show Chromium's log
+        if: failure()
+        shell: pwsh
+        run: Get-Content "$env:TEMP\arrow-cef-shell\Logs\chromium.log" -ErrorAction SilentlyContinue

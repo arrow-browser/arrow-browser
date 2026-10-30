@@ -53,6 +53,14 @@ final class Shell: BrowserEngineDelegate {
         }
     }
 
+    func browser(_ engine: any BrowserEngine, didFailLoad url: String, errorCode: Int, errorText: String) {
+        print("cef-shell: \(url.prefix(60)) failed to load: \(errorText) (\(errorCode))")
+    }
+
+    func browser(_ engine: any BrowserEngine, rendererDidTerminate status: TerminationStatus) {
+        print("cef-shell: the renderer process ended: \(status)")
+    }
+
     func browserDidClose(_ engine: any BrowserEngine) {
         window?.destroy()
         window = nil
