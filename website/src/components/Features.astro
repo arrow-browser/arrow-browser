@@ -1,0 +1,422 @@
+---
+import { dictionaries, type Locale } from '../i18n';
+import Icon, { type IconName } from './Icon.astro';
+import SidebarMock from './SidebarMock.astro';
+
+interface Props {
+	lang: Locale;
+}
+
+const { lang } = Astro.props;
+const dictionary = dictionaries[lang];
+const t = dictionary.features;
+
+const cards: { id: keyof typeof t.cards; icon: IconName }[] = [
+	{ id: 'split', icon: 'split' },
+	{ id: 'archive', icon: 'archive' },
+	{ id: 'little', icon: 'little' },
+	{ id: 'peek', icon: 'peek' },
+	{ id: 'boosts', icon: 'boosts' },
+	{ id: 'notes', icon: 'notes' },
+];
+---
+
+<section class="section" id="features">
+	<div class="container">
+		<header class="section-head reveal">
+			<p class="eyebrow">{t.eyebrow}</p>
+			<h2 class="section-title">{t.title}</h2>
+			<p class="section-lead">{t.lead}</p>
+		</header>
+
+		<div class="grid">
+			<article class="card wide reveal">
+				<div class="art art-sidebar">
+					<div class="sidebar-frame">
+						<SidebarMock names={[dictionary.spaces.names[0]]} newTab={dictionary.spaces.newTab} folder={t.sidebar.folder} />
+					</div>
+				</div>
+				<h3>{t.sidebar.title}</h3>
+				<p>{t.sidebar.body}</p>
+			</article>
+
+			<article class="card wide reveal">
+				<div class="art art-command" aria-hidden="true">
+					<div class="command">
+						<div class="field">
+							<Icon name="search" size={16} />
+							<span>{t.commandBar.typed}<mark>{t.commandBar.completion}</mark></span>
+						</div>
+						<ul>
+							{
+								t.commandBar.results.map((result, i) => (
+									<li class:list={{ active: i === 0 }}>
+										<Icon name={result.icon as IconName} size={15} />
+										<span class="text">{result.text}</span>
+										<span class="hint">{result.hint}</span>
+									</li>
+								))
+							}
+						</ul>
+					</div>
+					<div class="keys"><kbd>⌘</kbd><kbd>T</kbd></div>
+				</div>
+				<h3>{t.commandBar.title}</h3>
+				<p>{t.commandBar.body}</p>
+			</article>
+
+			{
+				cards.map((card) => (
+					<article class="card small reveal">
+						<span class="icon">
+							<Icon name={card.icon} />
+						</span>
+						<h3>{t.cards[card.id].title}</h3>
+						<p>{t.cards[card.id].body}</p>
+					</article>
+				))
+			}
+
+			<article class="card full import reveal">
+				<span class="icon">
+					<Icon name="import" />
+				</span>
+				<div>
+					<h3>{t.import.title}</h3>
+					<p>{t.import.body}</p>
+				</div>
+				<ul class="browsers">
+					{t.import.browsers.map((browser) => <li>{browser}</li>)}
+				</ul>
+			</article>
+		</div>
+
+		<div class="more reveal">
+			<h3>{t.moreTitle}</h3>
+			<ul>
+				{t.more.map((item) => <li>{item}</li>)}
+			</ul>
+		</div>
+	</div>
+</section>
+
+<style>
+	.grid {
+		display: grid;
+		grid-template-columns: repeat(6, minmax(0, 1fr));
+		gap: 16px;
+
+		@media (max-width: 1000px) {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+
+		@media (max-width: 640px) {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+
+	.card {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		padding: clamp(22px, 2.4vw, 32px);
+		border-radius: var(--radius-lg);
+		background: var(--surface);
+		box-shadow:
+			inset 0 0 0 1px var(--line),
+			var(--shadow-card);
+
+		h3 {
+			font-size: 1.1875rem;
+			font-weight: 650;
+			letter-spacing: -0.015em;
+		}
+
+		p {
+			color: var(--text-muted);
+			font-size: 0.984rem;
+		}
+	}
+
+	.wide {
+		grid-column: span 3;
+	}
+
+	.small {
+		grid-column: span 2;
+	}
+
+	.full {
+		grid-column: 1 / -1;
+	}
+
+	@media (max-width: 1000px) {
+		.small {
+			grid-column: span 1;
+		}
+
+		.wide {
+			grid-column: 1 / -1;
+		}
+	}
+
+	@media (max-width: 640px) {
+		.small {
+			grid-column: 1 / -1;
+		}
+	}
+
+	.icon {
+		display: grid;
+		place-items: center;
+		width: 44px;
+		height: 44px;
+		margin-bottom: 8px;
+		border-radius: 13px;
+		background: var(--accent-soft);
+		color: var(--accent);
+	}
+
+	/* Illustrations at the top of the wide cards. */
+	.art {
+		position: relative;
+		height: 260px;
+		margin: calc(-1 * clamp(22px, 2.4vw, 32px)) calc(-1 * clamp(22px, 2.4vw, 32px)) 18px;
+		border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+		overflow: hidden;
+		isolation: isolate;
+
+		&::after {
+			content: '';
+			position: absolute;
+			inset: 0;
+			z-index: -1;
+			background-image: var(--grain);
+			opacity: 0.14;
+			mix-blend-mode: overlay;
+		}
+	}
+
+	.art-sidebar {
+		background: linear-gradient(
+			135deg,
+			color-mix(in srgb, var(--lavender) 30%, var(--canvas)),
+			color-mix(in srgb, var(--rose) 26%, var(--canvas))
+		);
+
+		@media (prefers-color-scheme: dark) {
+			background: linear-gradient(
+				135deg,
+				color-mix(in srgb, var(--lavender) 42%, var(--canvas)),
+				color-mix(in srgb, var(--rose) 34%, var(--canvas))
+			);
+		}
+	}
+
+	.sidebar-frame {
+		position: absolute;
+		top: 24px;
+		left: 50%;
+		width: 230px;
+		height: 300px;
+		translate: -50% 0;
+		mask-image: linear-gradient(to bottom, #000 65%, transparent 82%);
+	}
+
+	.art-command {
+		display: grid;
+		place-items: center;
+		background: linear-gradient(
+			135deg,
+			color-mix(in srgb, var(--sky) 28%, var(--canvas)),
+			color-mix(in srgb, var(--indigo) 24%, var(--canvas))
+		);
+
+		@media (prefers-color-scheme: dark) {
+			background: linear-gradient(
+				135deg,
+				color-mix(in srgb, var(--sky) 30%, var(--canvas)),
+				color-mix(in srgb, var(--indigo) 40%, var(--canvas))
+			);
+		}
+	}
+
+	.command {
+		width: min(86%, 400px);
+		padding: 6px;
+		border-radius: 16px;
+		background: color-mix(in srgb, var(--surface) 92%, transparent);
+		box-shadow:
+			inset 0 0 0 1px var(--line),
+			0 20px 40px -16px rgb(30 30 80 / 0.35);
+		font-size: 0.8125rem;
+
+		.field {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			height: 44px;
+			padding-inline: 12px;
+			border-bottom: 1px solid var(--line);
+			color: var(--text);
+			font-size: 1rem;
+
+			svg {
+				color: var(--text-muted);
+			}
+		}
+
+		mark {
+			background: color-mix(in srgb, var(--accent) 22%, transparent);
+			color: inherit;
+		}
+
+		ul {
+			display: grid;
+			gap: 2px;
+			margin-top: 6px;
+			padding: 0;
+			list-style: none;
+		}
+
+		li {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			height: 34px;
+			padding-inline: 12px;
+			border-radius: 9px;
+			color: var(--text-muted);
+
+			&.active {
+				/* Not --accent: white text needs the darker accent in both schemes. */
+				background: #5257f0;
+				color: #fff;
+
+				.hint {
+					color: rgb(255 255 255 / 0.8);
+				}
+			}
+		}
+
+		.text {
+			overflow: hidden;
+			color: inherit;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		.active .text {
+			color: #fff;
+		}
+
+		li:not(.active) .text {
+			color: var(--text);
+		}
+
+		.hint {
+			flex: none;
+			margin-inline-start: auto;
+			font-size: 0.75rem;
+		}
+	}
+
+	.keys {
+		position: absolute;
+		right: 20px;
+		bottom: 18px;
+		display: flex;
+		gap: 4px;
+	}
+
+	kbd {
+		display: grid;
+		place-items: center;
+		min-width: 30px;
+		height: 30px;
+		padding-inline: 8px;
+		border-radius: 8px;
+		background: var(--surface);
+		box-shadow:
+			inset 0 -2px 0 var(--line-strong),
+			0 2px 6px -2px rgb(0 0 0 / 0.2);
+		font-family: inherit;
+		font-size: 0.875rem;
+		font-weight: 600;
+	}
+
+	.import {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		align-items: center;
+		gap: 24px;
+
+		.icon {
+			margin: 0;
+		}
+
+		div {
+			display: grid;
+			gap: 6px;
+		}
+
+		@media (max-width: 860px) {
+			grid-template-columns: minmax(0, 1fr);
+			gap: 14px;
+		}
+	}
+
+	.browsers,
+	.more ul {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+		padding: 0;
+		list-style: none;
+
+		li {
+			padding: 7px 14px;
+			border-radius: 999px;
+			background: var(--surface-muted);
+			box-shadow: inset 0 0 0 1px var(--line);
+			color: var(--text);
+			font-size: 0.875rem;
+			font-weight: 500;
+			white-space: nowrap;
+		}
+	}
+
+	.browsers {
+		justify-content: flex-end;
+		max-width: 340px;
+
+		@media (max-width: 860px) {
+			justify-content: flex-start;
+			max-width: none;
+		}
+	}
+
+	.more {
+		display: grid;
+		justify-items: center;
+		gap: 18px;
+		margin-top: 48px;
+		text-align: center;
+
+		h3 {
+			color: var(--text-muted);
+			font-size: 0.9375rem;
+			font-weight: 600;
+			letter-spacing: 0;
+		}
+
+		ul {
+			justify-content: center;
+			max-width: 860px;
+		}
+
+		li {
+			background: transparent;
+		}
+	}
+</style>

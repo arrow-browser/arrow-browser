@@ -1,0 +1,314 @@
+---
+import { dictionaries, type Locale } from '../i18n';
+import SidebarMock from './SidebarMock.astro';
+
+interface Props {
+	lang: Locale;
+}
+
+const { lang } = Astro.props;
+const t = dictionaries[lang].spaces;
+
+// The swatches of the browser's space color picker (SpaceTheme.presets): each
+// theme blends its color with an analogous one, 0.075 turn further on the wheel.
+const presets = [
+	{ color: '#9a8cff' },
+	{ color: '#ff8fa3' },
+	{ color: '#ffb36b' },
+	{ color: '#f5d76e' },
+	{ color: '#7ed6a5' },
+	{ color: '#6ec6f5' },
+	{ color: '#5b7cfa' },
+	{ color: '#b3b3b3', single: true },
+];
+
+function rotateHue(hex: string, turns: number): string {
+	const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+	const max = Math.max(r, g, b);
+	const delta = max - Math.min(r, g, b);
+	let hue = 0;
+	if (delta > 0) {
+		if (max === r) hue = ((g - b) / delta + 6) % 6;
+		else if (max === g) hue = (b - r) / delta + 2;
+		else hue = (r - g) / delta + 4;
+	}
+	const h = (hue / 6 + turns + 1) % 1;
+	const s = max === 0 ? 0 : delta / max;
+	const channel = (n: number) => {
+		const k = (n + h * 6) % 6;
+		const value = max - max * s * Math.max(0, Math.min(k, 4 - k, 1));
+		return Math.round(value * 255)
+			.toString(16)
+			.padStart(2, '0');
+	};
+	return `#${channel(5)}${channel(3)}${channel(1)}`;
+}
+
+const spaces = presets.map((preset, i) => ({
+	name: t.names[i],
+	a: preset.color,
+	b: preset.single ? preset.color : rotateHue(preset.color, 0.075),
+}));
+
+// One rule per space: checking its swatch recolors the window and shows its name.
+// The first space is the default, also without :has() support.
+const rules = `.spaces{--a:${spaces[0].a};--b:${spaces[0].b}}` + spaces
+	.map((space, i) => {
+		const when = `.spaces:has(#space-${i}:checked)`;
+		return [
+			`${when}{--a:${space.a};--b:${space.b}}`,
+			`${when} .space-name:not([data-space="${i}"]){display:none}`,
+			`${when} .space-name[data-space="${i}"]{display:inline}`,
+			`${when} .space-dot{opacity:.25;scale:1}`,
+			`${when} .space-dot[data-space="${i}"]{opacity:.85;scale:1.3}`,
+		].join('');
+	})
+	.join('');
+---
+
+<section class="section spaces" id="spaces">
+	<style is:inline set:html={rules}></style>
+	<div class="container layout">
+		<div class="copy reveal">
+			<p class="eyebrow">{t.eyebrow}</p>
+			<h2 class="section-title">{t.title}</h2>
+			<p class="section-lead">{t.body}</p>
+			<fieldset class="swatches">
+				<legend>{t.pick}</legend>
+				<div class="swatch-list">
+					{
+						spaces.map((space, i) => (
+							<label style={`--a: ${space.a}; --b: ${space.b}`} title={space.name}>
+								<input type="radio" name="space" id={`space-${i}`} value={i} checked={i === 0} />
+								<span class="sr-only">{space.name}</span>
+							</label>
+						))
+					}
+				</div>
+			</fieldset>
+		</div>
+		<div class="window reveal" aria-hidden="true">
+			<SidebarMock names={spaces.map((space) => space.name)} newTab={t.newTab} dots={spaces.length} />
+			<div class="page">
+				<div class="page-nav"><i></i><span></span><span></span><span></span></div>
+				<div class="page-hero"></div>
+				<span class="line" style="--w: 64%"></span>
+				<span class="line" style="--w: 82%"></span>
+				<span class="line" style="--w: 46%"></span>
+				<div class="page-cards"><i></i><i></i><i></i></div>
+			</div>
+		</div>
+	</div>
+</section>
+
+<style>
+	@property --a {
+		syntax: '<color>';
+		inherits: true;
+		initial-value: #9a8cff;
+	}
+
+	@property --b {
+		syntax: '<color>';
+		inherits: true;
+		initial-value: #9a8cff;
+	}
+
+	.spaces {
+		transition:
+			--a 0.6s ease,
+			--b 0.6s ease;
+	}
+
+	.layout {
+		display: grid;
+		grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+		align-items: center;
+		gap: clamp(40px, 6vw, 88px);
+
+		@media (max-width: 900px) {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+
+	.copy {
+		display: grid;
+		gap: 16px;
+	}
+
+	.swatches {
+		margin: 16px 0 0;
+		padding: 0;
+		border: 0;
+
+		legend {
+			padding: 0;
+			margin-bottom: 12px;
+			font-size: 0.9375rem;
+			font-weight: 600;
+		}
+	}
+
+	.swatch-list {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 9px;
+	}
+
+	label {
+		position: relative;
+		width: 34px;
+		height: 34px;
+		border-radius: 50%;
+		background: linear-gradient(135deg, var(--a), var(--b));
+		box-shadow:
+			inset 0 0 0 1px rgb(0 0 0 / 0.08),
+			0 2px 6px -2px rgb(0 0 0 / 0.25);
+		cursor: pointer;
+		transition: scale 0.2s ease;
+
+		&:hover {
+			scale: 1.08;
+		}
+
+		/* Ring around the selected swatch. */
+		&::after {
+			content: '';
+			position: absolute;
+			inset: -5px;
+			border-radius: 50%;
+			box-shadow: 0 0 0 2px var(--text);
+			opacity: 0;
+			scale: 0.9;
+			transition:
+				opacity 0.2s ease,
+				scale 0.2s ease;
+		}
+
+		&:has(:checked)::after {
+			opacity: 1;
+			scale: 1;
+		}
+
+		&:has(:focus-visible)::after {
+			opacity: 1;
+			scale: 1;
+			box-shadow: 0 0 0 2px var(--accent);
+		}
+	}
+
+	input {
+		position: absolute;
+		inset: 0;
+		margin: 0;
+		opacity: 0;
+		cursor: pointer;
+	}
+
+	/* The window takes the space's gradient, mixed over the browser's canvas. */
+	.window {
+		--mix: 24%;
+		--tint-a: color-mix(in srgb, var(--a) var(--mix), var(--canvas));
+		--tint-b: color-mix(in srgb, var(--b) var(--mix), var(--canvas));
+
+		position: relative;
+		display: grid;
+		grid-template-columns: 30% 1fr;
+		aspect-ratio: 16 / 10.5;
+		border-radius: 16px;
+		background: linear-gradient(135deg, var(--tint-a), var(--tint-b));
+		box-shadow:
+			inset 0 0 0 1px rgb(0 0 0 / 0.06),
+			var(--shadow-window);
+		overflow: hidden;
+		isolation: isolate;
+
+		&::after {
+			content: '';
+			position: absolute;
+			inset: 0;
+			z-index: -1;
+			background-image: var(--grain);
+			opacity: 0.12;
+			mix-blend-mode: overlay;
+		}
+
+		@media (prefers-color-scheme: dark) {
+			--mix: 46%;
+		}
+
+		@media (max-width: 520px) {
+			grid-template-columns: 40% 1fr;
+			aspect-ratio: 4 / 3.6;
+		}
+	}
+
+	.page {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		margin: 8px 8px 8px 0;
+		padding: 14px;
+		border-radius: 10px;
+		background: var(--surface);
+		box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
+		overflow: hidden;
+
+		--skeleton: rgb(23 21 31 / 0.09);
+
+		@media (prefers-color-scheme: dark) {
+			--skeleton: rgb(255 255 255 / 0.1);
+		}
+	}
+
+	.page-nav {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-bottom: 4px;
+
+		i {
+			width: 14px;
+			height: 14px;
+			margin-inline-end: auto;
+			border-radius: 4px;
+			background: linear-gradient(135deg, var(--a), var(--b));
+		}
+
+		span {
+			width: 9%;
+			height: 5px;
+			border-radius: 3px;
+			background: var(--skeleton);
+		}
+	}
+
+	.page-hero {
+		flex: 1;
+		min-height: 60px;
+		border-radius: 8px;
+		background:
+			radial-gradient(60% 80% at 80% 20%, rgb(255 255 255 / 0.35), transparent),
+			linear-gradient(135deg, var(--a), var(--b));
+	}
+
+	.line {
+		width: var(--w);
+		height: 6px;
+		border-radius: 3px;
+		background: var(--skeleton);
+	}
+
+	.page-cards {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 8px;
+		margin-top: 4px;
+
+		i {
+			height: 44px;
+			border-radius: 6px;
+			background: var(--skeleton);
+		}
+	}
+</style>

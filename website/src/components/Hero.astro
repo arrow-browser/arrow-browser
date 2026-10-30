@@ -1,0 +1,185 @@
+---
+import { Image } from 'astro:assets';
+import { dictionaries, GITHUB_URL, type Locale } from '../i18n';
+import screenshot from '../assets/screenshot.webp';
+import Icon from './Icon.astro';
+
+interface Props {
+	lang: Locale;
+}
+
+const { lang } = Astro.props;
+const t = dictionaries[lang].hero;
+---
+
+<section class="hero">
+	<div class="aura" aria-hidden="true"></div>
+	<div class="container copy">
+		<p class="badge"><span class="dot"></span>{t.badge}</p>
+		<h1>{t.title}</h1>
+		<p class="lead">{t.lead}</p>
+		<div class="actions">
+			<a class="button button-primary" href={GITHUB_URL}>
+				{t.primary}
+				<Icon name="arrow" size={18} />
+			</a>
+			<a class="button button-secondary" href="#features">{t.secondary}</a>
+		</div>
+		<p class="requirements">{t.requirements}</p>
+	</div>
+	<div class="container shot">
+		<Image
+			src={screenshot}
+			alt={t.screenshotAlt}
+			widths={[640, 960, 1280, 1920]}
+			sizes="(min-width: 1280px) 1200px, calc(100vw - 2 * clamp(16px, 4vw, 40px))"
+			priority
+		/>
+	</div>
+</section>
+
+<style>
+	.hero {
+		position: relative;
+		padding-top: clamp(56px, 9vw, 112px);
+		isolation: isolate;
+	}
+
+	/* The page opens on a space theme: pastel gradient with film grain. */
+	.aura {
+		position: absolute;
+		inset: -64px 0 auto;
+		height: min(1100px, 130vh);
+		z-index: -1;
+		background:
+			radial-gradient(40% 50% at 18% 22%, color-mix(in srgb, var(--lavender) 55%, transparent), transparent 70%),
+			radial-gradient(38% 45% at 82% 18%, color-mix(in srgb, var(--rose) 45%, transparent), transparent 70%),
+			radial-gradient(45% 50% at 70% 62%, color-mix(in srgb, var(--apricot) 35%, transparent), transparent 70%),
+			radial-gradient(40% 45% at 25% 70%, color-mix(in srgb, var(--sky) 35%, transparent), transparent 70%);
+		mask-image: linear-gradient(to bottom, #000 55%, transparent);
+
+		&::after {
+			content: '';
+			position: absolute;
+			inset: 0;
+			background-image: var(--grain);
+			opacity: 0.22;
+			mix-blend-mode: overlay;
+		}
+
+		@media (prefers-color-scheme: dark) {
+			opacity: 0.55;
+		}
+	}
+
+	.copy {
+		display: grid;
+		justify-items: center;
+		text-align: center;
+	}
+
+	.badge {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		padding: 6px 14px 6px 10px;
+		border-radius: 999px;
+		background: color-mix(in srgb, var(--surface) 65%, transparent);
+		box-shadow:
+			inset 0 0 0 1px var(--line-strong),
+			var(--shadow-card);
+		font-size: 0.875rem;
+		font-weight: 600;
+		backdrop-filter: blur(8px);
+		-webkit-backdrop-filter: blur(8px);
+	}
+
+	.dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background: var(--brand-gradient);
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--orchid) 25%, transparent);
+	}
+
+	h1 {
+		max-width: 12ch;
+		margin-top: 28px;
+		font-size: clamp(3rem, 6.4vw + 0.75rem, 6.25rem);
+		font-weight: 750;
+		line-height: 0.98;
+		letter-spacing: -0.038em;
+	}
+
+	.lead {
+		max-width: 38rem;
+		margin-top: 28px;
+		color: var(--text-muted);
+		font-size: clamp(1.125rem, 0.6vw + 1rem, 1.375rem);
+		line-height: 1.5;
+	}
+
+	.actions {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 12px;
+		margin-top: 36px;
+	}
+
+	.requirements {
+		margin-top: 20px;
+		color: var(--text-muted);
+		font-size: 0.875rem;
+	}
+
+	.shot {
+		position: relative;
+		margin-top: clamp(56px, 8vw, 96px);
+		container-type: inline-size;
+
+		/* Glow in the space colors behind the window. */
+		&::before {
+			content: '';
+			position: absolute;
+			inset: 12% 8% -4%;
+			z-index: -1;
+			background: var(--brand-gradient);
+			filter: blur(80px);
+			opacity: 0.4;
+		}
+
+		img {
+			width: 100%;
+			/* Matches the window corners drawn in the screenshot. */
+			border-radius: 1.05cqi;
+			box-shadow: var(--shadow-window);
+		}
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		@keyframes rise {
+			from {
+				opacity: 0;
+				translate: 0 24px;
+			}
+		}
+
+		/* The screenshot is the LCP element: it is shown right away. */
+		.copy > * {
+			animation: rise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+		}
+
+		.copy > :nth-child(2) {
+			animation-delay: 0.06s;
+		}
+
+		.copy > :nth-child(3) {
+			animation-delay: 0.12s;
+		}
+
+		.copy > :nth-child(n + 4) {
+			animation-delay: 0.18s;
+		}
+	}
+</style>

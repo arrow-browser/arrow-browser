@@ -1,0 +1,68 @@
+---
+import { dictionaries, GITHUB_URL, type Locale } from '../i18n';
+import Icon from './Icon.astro';
+import Logo from './Logo.astro';
+
+interface Props {
+	lang: Locale;
+}
+
+const { lang } = Astro.props;
+const t = dictionaries[lang].openSource;
+---
+
+<section class="section open-source" id="open-source">
+	<div class="container content reveal">
+		<Logo id="open-source-logo" size={96} class="logo" />
+		<p class="eyebrow">{t.eyebrow}</p>
+		<h2 class="section-title">{t.title}</h2>
+		<p class="section-lead">{t.body}</p>
+		<a class="button button-primary" href={GITHUB_URL}>
+			{t.cta}
+			<Icon name="arrow" size={18} />
+		</a>
+	</div>
+</section>
+
+<style>
+	.open-source {
+		position: relative;
+		padding-bottom: var(--section-space);
+		isolation: isolate;
+
+		&::before {
+			content: '';
+			position: absolute;
+			inset: 20% 0 0;
+			z-index: -1;
+			background:
+				radial-gradient(35% 45% at 35% 60%, color-mix(in srgb, var(--lavender) 30%, transparent), transparent 70%),
+				radial-gradient(35% 45% at 65% 55%, color-mix(in srgb, var(--rose) 26%, transparent), transparent 70%);
+			mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 70%, transparent);
+
+			@media (prefers-color-scheme: dark) {
+				opacity: 0.6;
+			}
+		}
+	}
+
+	.content {
+		display: grid;
+		justify-items: center;
+		gap: 16px;
+		max-width: 44rem;
+		text-align: center;
+	}
+
+	.content :global(.logo) {
+		margin-bottom: 16px;
+		border-radius: 22%;
+		box-shadow:
+			0 10px 30px -10px rgb(110 80 200 / 0.55),
+			0 30px 60px -30px rgb(255 120 160 / 0.5);
+	}
+
+	.button {
+		margin-top: 16px;
+	}
+</style>
