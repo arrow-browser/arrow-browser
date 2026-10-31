@@ -236,6 +236,9 @@ enum Glyph {
         case "rectangle.split.2x1": splitView
         case "arrow.down.circle": update
         case "square.stack": spaces
+        // Space icons.
+        case "person.fill", "person": person
+        case "globe", "globe.americas.fill", "globe.europe.africa.fill": globe
         default: globe
         }
     }

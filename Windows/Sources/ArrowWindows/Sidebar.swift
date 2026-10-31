@@ -144,12 +144,21 @@ final class Sidebar {
         header.margin = Thickness(left: 9, top: 10, right: 0, bottom: 6)
         // Hit-testable where empty, for its menu.
         header.background = brushes.clear
-        // Arc shows no icon next to the name of a space without one.
-        if case let .emoji(emoji) = space.icon {
+        // Arc shows the space's icon, emoji or symbol, before its name; none
+        // for a space without one.
+        switch space.icon {
+        case let .emoji(emoji)?:
             let icon = TextBlock()
             icon.text = emoji
             icon.fontSize = 12
             header.children.append(icon)
+        case let .symbol(name)?:
+            let icon = Glyph.view(Glyph.symbol(name), size: 12)
+            icon.foreground = brushes.title
+            icon.verticalAlignment = .center
+            header.children.append(icon)
+        case nil:
+            break
         }
         if state.renamingNodeID == space.id {
             header.children.append(renameField(space.title, width: 150) { [weak self] title in
