@@ -23,6 +23,8 @@ final class Sidebar {
     private let spaceBar = StackPanel()
     /// Arc's media controls, for a tab playing out of sight.
     private let mediaBar = Border()
+    /// Pages never visited whose favicon was asked for, once each.
+    private var requestedFavicons: Set<String> = []
     /// The tab paused from the media controls, which stay (with Play) while
     /// it shows the same page.
     private var pausedMedia: (id: Foundation.UUID, url: String)?
@@ -117,6 +119,8 @@ final class Sidebar {
             let tile = Button()
             tile.content = favicon(for: tab)
             tile.height = 45
+            // Arc's favicon sits a pixel below the middle.
+            tile.padding = Thickness(left: 0, top: 1, right: 0, bottom: 0)
             tile.horizontalAlignment = .stretch
             tile.cornerRadius = CornerRadius(8)
             tile.background = isSelected ? brushes.selection : brushes.controlFill
@@ -138,10 +142,12 @@ final class Sidebar {
     // MARK: - Rows
 
     private func header(for space: Space) -> UIElement {
+        // Arc's: a 16-pixel icon, the name 5 pixels after it, the rows 10
+        // pixels below.
         let header = StackPanel()
         header.orientation = .horizontal
-        header.spacing = 6
-        header.margin = Thickness(left: 9, top: 10, right: 0, bottom: 6)
+        header.spacing = 5
+        header.margin = Thickness(left: 9, top: 10, right: 0, bottom: 8)
         // Hit-testable where empty, for its menu.
         header.background = brushes.clear
         // Arc shows the space's icon, emoji or symbol, before its name; none
@@ -151,10 +157,14 @@ final class Sidebar {
             let icon = TextBlock()
             icon.text = emoji
             icon.fontSize = 12
+            icon.width = 16
+            icon.textAlignment = .center
             header.children.append(icon)
         case let .symbol(name)?:
-            let icon = Glyph.view(Glyph.symbol(name), size: 12)
+            let icon = Glyph.view(Glyph.symbol(name), size: 14)
             icon.foreground = brushes.title
+            icon.width = 16
+            icon.textAlignment = .center
             icon.verticalAlignment = .center
             header.children.append(icon)
         case nil:
@@ -202,10 +212,15 @@ final class Sidebar {
             makeDropTarget(row) { before }
             list.children.append(row)
         case let .folder(folder):
-            // A live folder shows Arc's bolt.
-            let icon = Glyph.view(LiveFolders.shared.isLive(folder.id) ? Glyph.live
-                                  : folder.isExpanded ? Glyph.folderOpen : Glyph.folder, size: 16)
-            icon.foreground = brushes.folder
+            // A live folder shows Arc's bolt; a closed one Arc's filled folder.
+            let icon: FrameworkElement
+            if !LiveFolders.shared.isLive(folder.id), !folder.isExpanded {
+                icon = closedFolderIcon()
+            } else {
+                let glyph = Glyph.view(LiveFolders.shared.isLive(folder.id) ? Glyph.live : Glyph.folderOpen, size: 16)
+                glyph.foreground = brushes.folder
+                icon = glyph
+            }
             let row = row(title: folder.title, icon: icon, isSelected: false, depth: depth, isBold: true,
                           renaming: folder.id, rename: { [weak self] title in
                               guard !title.isEmpty else { return }
@@ -809,8 +824,44 @@ final class Sidebar {
         tab.customTitle.flatMap { $0.isEmpty ? nil : $0 } ?? store.tabs[tab.id]?.displayTitle ?? store.title(of: tab)
     }
 
+    /// Arc's closed folder (18 x 16): a tab over a rounded body, outlined
+    /// in the folder color, light inside.
+    private func closedFolderIcon() -> FrameworkElement {
+        let icon = Canvas()
+        icon.width = 18
+        icon.height = 16
+        icon.verticalAlignment = .center
+        let tab = Rectangle()
+        tab.width = 8
+        tab.height = 5
+        tab.radiusX = 1.5
+        tab.radiusY = 1.5
+        tab.fill = brushes.folder
+        let body = Rectangle()
+        body.width = 18
+        body.height = 13
+        body.radiusX = 2.5
+        body.radiusY = 2.5
+        body.stroke = brushes.folder
+        body.strokeThickness = 2
+        body.fill = brushes.folderFill
+        try? Canvas.setTop(body, 3)
+        icon.children.append(tab)
+        icon.children.append(body)
+        return icon
+    }
+
     private func favicon(for tab: Tab) -> FrameworkElement {
         guard let favicon = store.tabs[tab.id]?.favicon ?? FaviconCache.shared.image(for: tab.url) else {
+            // A page never visited (a favorite, a pinned page) shows its
+            // favicon too, as in Arc: fetched once.
+            if requestedFavicons.insert(tab.url).inserted {
+                let url = tab.url
+                Task { [weak self] in
+                    guard await FaviconCache.shared.fetch(for: url) != nil else { return }
+                    self?.update()
+                }
+            }
             let globe = Glyph.view(Glyph.globe)
             globe.foreground = brushes.icon
             return globe

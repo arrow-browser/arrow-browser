@@ -17,6 +17,8 @@ final class ThemeBrushes {
     let background = LinearGradientBrush()
     /// Folder icons, in a vivid shade of the theme's hue.
     let folder = SolidColorBrush()
+    /// The inside of a closed folder's icon (#EFEFFD in Arc's default space).
+    let folderFill = SolidColorBrush()
     let title = SolidColorBrush()
     let subtitle = SolidColorBrush()
     let icon = SolidColorBrush()
@@ -60,7 +62,9 @@ final class ThemeBrushes {
         title.color = Color(ink)
         subtitle.color = Color(palette.subtitle)
         icon.color = Color(isDark ? palette.icon : ink)
-        folder.color = Color(RGBColor(hue: hue, saturation: 0.82, brightness: isDark ? 1 : 0.98))
+        let folderColor = RGBColor(hue: hue, saturation: 0.82, brightness: isDark ? 1 : 0.98)
+        folder.color = Color(folderColor)
+        folderFill.color = Color(isDark ? folderColor.withAlpha(0.2) : RGBColor(hue: hue, saturation: 0.06, brightness: 0.99))
         disabledIcon.color = Color((isDark ? palette.icon : ink).withAlpha(0.4))
         controlFill.color = Color(palette.controlFill)
         controlHover.color = Color(palette.controlFill.withAlpha(min(palette.controlFill.alpha * 1.6, 1)))
