@@ -99,6 +99,22 @@ extension BrowserWindow {
         state.renamingNodeID = folder?.id
     }
 
+    /// Open, from the command bar: the folder shown open, its first page
+    /// selected.
+    func openFolder(_ folderID: Foundation.UUID) {
+        if !state.isSidebarVisible { toggleSidebar() }
+        var first: Foundation.UUID?
+        store.update { browser in
+            for index in browser.spaces.indices {
+                browser.spaces[index].pinned.updateFolder(folderID) { folder in
+                    folder.isExpanded = true
+                    first = folder.children.allTabs.first?.id
+                }
+            }
+        }
+        if let first { select(first) }
+    }
+
     /// Expand All Folders of the space.
     func expandAllFolders() {
         let spaceID = state.selectedSpaceID

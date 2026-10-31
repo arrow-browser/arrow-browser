@@ -36,6 +36,11 @@ final class CommandBar {
     private let scroller = ScrollViewer()
     private let rows = StackPanel()
     private let colors: Colors
+    /// Pages never visited whose favicon was asked for, once each.
+    private var requestedFavicons: Set<String> = []
+    /// The field's text as the bar last saw or set it: a completion that
+    /// comes later replaces only that, not keys typed since.
+    private var shownText = ""
 
     init(model: CommandBarModel, placement: Placement, window: BrowserWindow) {
         self.model = model
@@ -52,6 +57,7 @@ final class CommandBar {
         popup.xamlRoot = root.xamlRoot
         place(in: root)
         field.text = model.text
+        shownText = model.text
         popup.isOpen = true
         _ = try? field.focus(.programmatic)
         if !model.text.isEmpty { try? field.selectAll() }
@@ -170,6 +176,12 @@ final class CommandBar {
     }
 
     private func update() {
+        // A completion that came with the suggestions.
+        if model.text != shownText, field.text == shownText, model.completion != nil {
+            shownText = model.text
+            field.text = model.text
+            selectCompletion()
+        }
         let items = model.items
         let selectedIndex = model.selectedIndex
         rows.children.clear()
@@ -304,6 +316,13 @@ final class CommandBar {
 
     private func favicon(for item: CommandBarItem) -> FrameworkElement {
         guard let image = faviconImage(for: item) else {
+            // A site never visited shows its favicon too, as in Arc.
+            if let url = item.url, requestedFavicons.insert(url).inserted {
+                Task { [weak self] in
+                    guard await FaviconCache.shared.fetch(for: url) != nil else { return }
+                    self?.update()
+                }
+            }
             let globe = Glyph.view(Glyph.globe)
             globe.foreground = colors.secondary
             return globe
@@ -348,16 +367,24 @@ final class CommandBar {
 
     private func fieldDidChange() {
         let text = field.text
+        shownText = text
         guard text != model.text else { return }
         model.text = text
         // Typing forward completes the address from history, selected.
         guard model.text != text else { return }
+        shownText = model.text
         field.text = model.text
-        if let range = model.selectedRange {
-            let utf16 = model.text.utf16
-            let start = utf16.distance(from: utf16.startIndex, to: range.lowerBound)
-            try? field.select(Int32(start), Int32(utf16.distance(from: range.lowerBound, to: range.upperBound)))
-        }
+        selectCompletion()
+    }
+
+    /// Selects the completed part of the field, after what was typed, as
+    /// typing goes on over it.
+    private func selectCompletion() {
+        guard model.completion != nil else { return }
+        let start = model.typedText.utf16.count
+        let length = model.text.utf16.count - start
+        guard start >= 0, length > 0 else { return }
+        try? field.select(Int32(start), Int32(length))
     }
 
     /// Handles `key` in the field: whether it was the bar's.

@@ -749,6 +749,8 @@ final class BrowserWindow {
     func showCommandBar(mode: CommandBarModel.Mode, placement: CommandBar.Placement = .center, text: String = "") {
         commandBar?.close()
         let store = store
+        let commands = CommandCatalog.commands + CommandCatalog.spaceCommands(store.state.spaces)
+            + CommandCatalog.folderCommands(store.state.space(state.selectedSpaceID)?.pinned ?? [])
         var sources = CommandBarModel.Sources(
             openTabs: {
                 store.state.spaces.flatMap { space in
@@ -756,14 +758,15 @@ final class BrowserWindow {
                 } + store.state.favorites.values.flatMap { $0.map { CommandBarTab(tab: $0, spaceTitle: nil) } }
             },
             history: { store.history },
-            commands: CommandCatalog.commands + CommandCatalog.spaceCommands(store.state.spaces),
+            commands: commands,
             engine: { store.settings.searchEngine },
             settings: { store.settings },
             currentTabID: state.selectedTabID
         )
         // Arc's on Windows.
         sources.fallbackCompletion = CommandBarRanking.completion(for:)
-        sources.arrange = CommandBarRanking.arrange
+        sources.suggestedCompletion = CommandBarRanking.suggestedCompletion
+        sources.arrange = { items, typed in CommandBarRanking.arrange(items, typed, commands: commands) }
         let model = CommandBarModel(mode: mode, anchor: .center, initialText: text, sources: sources)
         let bar = CommandBar(model: model, placement: placement, window: self)
         bar.onClose = { [weak self, weak bar] in
@@ -798,6 +801,7 @@ final class BrowserWindow {
             return
         }
         bar.close()
+        CommandBarRanking.remember(item, for: bar.model.typedText)
         let mode = bar.model.mode
         switch item.kind {
         case let .navigate(url), let .open(url):

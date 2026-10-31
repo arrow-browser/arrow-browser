@@ -70,49 +70,50 @@ enum CommandCatalog {
         shortcut([Shortcut.newWindow]) { _ in ArrowApp.openWindow() },
         shortcut([Shortcut.newIncognitoWindow]) { _ in ArrowApp.openWindow(incognito: true) },
         shortcut([Shortcut.find]) { $0.showFindBar() },
-        // Arc's commands on Windows: its menus' and its tab's actions.
-        entry("close", "Close", ["window"], "xmark", [Shortcut.close]) { $0.close() },
+        // Arc's commands on Windows: its menus' and its tab's actions, with
+        // the keywords Arc finds them by.
+        entry("close", "Close", [], "xmark", [Shortcut.close]) { $0.close() },
         entry("close-tab", "Close Current Tab", [], "xmark", [Shortcut.closeTab]) { $0.closeSelectedTab() },
-        entry("reopen", "Reopen Last Closed Tab", ["undo", "restore"], "arrow.uturn.backward", [Shortcut.reopenTab]) {
+        entry("reopen", "Reopen Last Closed Tab", ["closed tab"], "arrow.uturn.backward", [Shortcut.reopenTab]) {
             $0.reopenLastClosedTab()
         },
         entry("reload", "Reload Current Tab", ["refresh current tab"], "arrow.clockwise", [Shortcut.reload, .key(VK_F5)]) {
             $0.selectedTab?.reload()
         },
-        entry("force-reload", "Force Reload Current Tab", ["force refresh current tab", "clear cache"],
+        entry("force-reload", "Force Reload Current Tab", ["force refresh current tab", "reload current tab", "clear cache"],
               "arrow.clockwise", [Shortcut.forceReload, .key(VK_F5, .control)]) { $0.selectedTab?.engine?.reloadIgnoringCache() },
         entry("clear-archive", "Clear Archive", [], "archivebox", []) { window in
             window.store.update { $0.archive = [] }
         },
-        entry("clear-unpinned", "Clear Today Tabs", ["unpinned"], "xmark.circle", [Shortcut.clearToday]) {
+        entry("clear-unpinned", "Clear Today Tabs", [], "xmark.circle", [Shortcut.clearToday]) {
             $0.clearToday()
         },
-        entry("console", "JavaScript Console", ["developer"], "hammer", []) { $0.showDeveloperTools(panel: "console") },
-        entry("build-info", "Copy Build Info", ["version"], "gearshape", []) { $0.copyBuildInfo() },
+        entry("console", "JavaScript Console", ["console"], "hammer", []) { $0.showDeveloperTools(panel: "console") },
+        entry("build-info", "Copy Build Info", [], "gearshape", []) { $0.copyBuildInfo() },
         entry("duplicate", "Duplicate Current Tab", ["copy tab"], "plus.square.on.square", []) { window in
             guard let tabID = window.state.selectedTabID else { return }
             window.duplicateTab(tabID)
         },
-        entry("copy-url", "Copy Current URL", ["link", "share"], "gearshape", [Shortcut.copyURL]) { $0.copyURL() },
-        entry("default-browser", "Set Arrow as Default Browser", [], "heart", []) { $0.openDefaultBrowserSettings() },
-        entry("devtools", "Developer", ["tools", "debug"], "hammer", [Shortcut.developerTools, .key(VK_F12)]) {
+        entry("copy-url", "Copy Current URL", [], "gearshape", [Shortcut.copyURL]) { $0.copyURL() },
+        entry("default-browser", "Set Arrow as Default Browser", ["default browser"], "heart", []) { $0.openDefaultBrowserSettings() },
+        entry("devtools", "Developer", [], "hammer", [Shortcut.developerTools, .key(VK_F12)]) {
             $0.showDeveloperTools()
         },
-        entry("add-extension", "Add Extension", ["chrome web store"], "puzzlepiece", []) { $0.addExtension() },
-        entry("manage-extensions", "Manage Extensions", [], "puzzlepiece", []) { _ in
+        entry("add-extension", "Add Extension", ["extension"], "puzzlepiece", []) { $0.addExtension() },
+        entry("manage-extensions", "Manage Extensions", ["extensions"], "puzzlepiece", []) { _ in
             SettingsWindow.show(section: .extensions)
         },
-        entry("fullscreen", "Enter Fullscreen", [], "arrow.up.left.and.arrow.down.right", [Shortcut.fullscreen]) {
+        entry("fullscreen", "Enter Fullscreen", ["fullscreen"], "arrow.up.left.and.arrow.down.right", [Shortcut.fullscreen]) {
             $0.toggleFullscreen()
         },
-        entry("import", "Import from Another Browser", ["bookmarks"], "square.and.arrow.down", []) {
+        entry("import", "Import from Another Browser", [], "square.and.arrow.down", []) {
             $0.importFromBrowser()
         },
         entry("inspect", "Inspect Elements", [], "hammer", []) { $0.inspectElements() },
         entry("network", "Network Inspector", [], "hammer", []) { $0.showDeveloperTools(panel: "network") },
         entry("next-tab", "Next Tab", [], "arrow.right", [Shortcut.nextTab]) { $0.selectTab(offset: 1) },
         entry("next-space", "Next Space", [], "arrow.right.square", [Shortcut.nextSpace]) { $0.selectSpace(offset: 1) },
-        entry("pin", "Pin Tab", ["unpin"], "pin", [Shortcut.pinTab]) { $0.togglePinTab() },
+        entry("pin", "Pin Tab", [], "pin", [Shortcut.pinTab]) { $0.togglePinTab() },
         entry("favorite", "Favorite Tab", ["pin"], "star", []) { window in
             guard let tabID = window.state.selectedTabID else { return }
             window.store.update { _ = $0.move(tabID, to: .favorites()) }
@@ -127,7 +128,7 @@ enum CommandCatalog {
             guard let tabID = window.state.selectedTabID else { return }
             window.rename(tabID)
         },
-        entry("reset-zoom", "Reset Zoom", [], "plus.magnifyingglass", [Shortcut.actualSize]) {
+        entry("reset-zoom", "Reset Zoom", ["zoom"], "plus.magnifyingglass", [Shortcut.actualSize]) {
             $0.selectedTab?.resetZoom()
         },
         entry("zoom-in", "Zoom In", [], "plus.magnifyingglass", [Shortcut.zoomIn]) { $0.selectedTab?.zoomIn() },
@@ -137,17 +138,17 @@ enum CommandCatalog {
         },
         entry("expand-folders", "Expand All Folders", ["reveal"], "folder", []) { $0.expandAllFolders() },
         entry("reveal", "Reveal Tab in Sidebar", ["sidebar"], "sidebar.left", []) { $0.revealSelectedTab() },
-        entry("settings", "Settings", ["preferences"], "gearshape", [Shortcut.settings]) { _ in SettingsWindow.show() },
-        entry("toggle-sidebar", "Toggle Sidebar", ["hide", "show"], "sidebar.left", [Shortcut.toggleSidebar]) {
+        entry("settings", "Settings", [], "gearshape", [Shortcut.settings]) { _ in SettingsWindow.show() },
+        entry("toggle-sidebar", "Toggle Sidebar", ["sidebar"], "sidebar.left", [Shortcut.toggleSidebar]) {
             $0.toggleSidebar()
         },
-        entry("split", "New Split View", ["side by side", "pane"], "rectangle.split.2x1", [Shortcut.newSplitView]) {
+        entry("split", "New Split View", ["split view"], "rectangle.split.2x1", [Shortcut.newSplitView]) {
             $0.addSplitView()
         },
-        entry("updates", "Check for Updates…", ["update"], "arrow.down.circle", []) { $0.checkForUpdates() },
-        entry("view-source", "View Source", ["html"], "doc.plaintext", [Shortcut.viewSource]) { $0.viewSource() },
-        entry("archive", "View Archive", ["closed"], "archivebox", []) { $0.showArchive() },
-        entry("history", "View History", ["visited"], "clock", []) { $0.showHistory() },
+        entry("updates", "Check for Updates…", ["updates"], "arrow.down.circle", []) { $0.checkForUpdates() },
+        entry("view-source", "View Source", [], "doc.plaintext", [Shortcut.viewSource]) { $0.viewSource() },
+        entry("archive", "View Archive", [], "archivebox", []) { $0.showArchive() },
+        entry("history", "View History", [], "clock", []) { $0.showHistory() },
     ] + (0..<9).map { index in
         shortcut([Shortcut.space(index)]) { $0.selectSpace(at: index) }
     } + (0..<9).map { index in
@@ -174,9 +175,23 @@ enum CommandCatalog {
         spaces.map { CommandBarCommand(id: "space-\($0.id.uuidString)", title: $0.title, symbol: "square.stack") }
     }
 
+    /// Arc's "Open" command of each pinned folder, found by the titles of
+    /// its pages too.
+    static func folderCommands(_ nodes: [SidebarNode]) -> [CommandBarCommand] {
+        nodes.compactMap { node in
+            guard case let .folder(folder) = node else { return nil }
+            return CommandBarCommand(id: "folder-\(folder.id.uuidString)", title: "Open \(folder.title)",
+                                     keywords: folder.children.allTabs.map(\.displayTitle), symbol: "folder")
+        }
+    }
+
     static func perform(_ id: String, in window: BrowserWindow) {
         if id.hasPrefix("space-"), let spaceID = Foundation.UUID(uuidString: String(id.dropFirst("space-".count))) {
             window.selectSpace(spaceID)
+            return
+        }
+        if id.hasPrefix("folder-"), let folderID = Foundation.UUID(uuidString: String(id.dropFirst("folder-".count))) {
+            window.openFolder(folderID)
             return
         }
         entries.first { $0.command?.id == id }?.action(window)

@@ -78,6 +78,10 @@ struct CommandBarTests {
         // Google's ISO-8859-1 answer when a suggestion has an accent.
         let latin1 = try #require(#"["traduction",["traduction français"]]"#.data(using: .isoLatin1))
         #expect(SearchSuggestions.parse(latin1) == ["traduction français"])
+        // Google's "chrome" client marks the sites it suggests.
+        let chrome = Data(#"["zoom",["zoom","https://www.zoomalia.com/"],["",""],[],{"google:suggestrelevance":[1300,1249],"google:suggesttype":["QUERY","NAVIGATION"]}]"#.utf8)
+        #expect(SearchSuggestions.navigations(chrome) == [.init(url: "https://www.zoomalia.com/", relevance: 1249)])
+        #expect(SearchSuggestions.navigations(google).isEmpty)
     }
 }
 

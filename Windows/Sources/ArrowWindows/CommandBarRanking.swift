@@ -4,7 +4,8 @@ import Foundation
 
 /// The command bar of Arc on Windows: five rows, a well-known site completed
 /// in the field ("transl" → translate.google.com), then the search, the
-/// other sites, open tabs, commands, history and suggestions.
+/// other sites, open tabs, commands, history and suggestions. The row chosen
+/// for a query comes first the next time (Arc's queriesToSelectedArchetype).
 enum CommandBarRanking {
     struct Site {
         var domain: String
@@ -14,11 +15,60 @@ enum CommandBarRanking {
 
     static let maximumRows = 5
 
+    /// Words for which Arc lists a command before the search, as observed in
+    /// Arc 1.130 for Windows (where it had no usage of its own).
+    static let triggers: [String: String] = [
+        "close": "close", "copy": "build-info", "developer": "devtools", "duplicate": "duplicate",
+        "force": "force-reload", "fullscreen": "fullscreen", "import": "import", "inspect": "inspect",
+        "previous": "previous-tab", "print": "print", "reopen": "reopen", "rename": "rename-space",
+        "settings": "settings", "sidebar": "toggle-sidebar", "update": "updates", "view": "view-source",
+    ]
+
+    private static let selectionsKey = "CommandBarSelections"
+    private static let maximumSelections = 200
+
+    /// Remembers the row chosen for `query`, to list it first next time.
+    static func remember(_ item: CommandBarItem, for query: String) {
+        let query = query.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !query.isEmpty else { return }
+        var selections = UserDefaults.standard.dictionary(forKey: selectionsKey) as? [String: String] ?? [:]
+        if selections[query] == nil, selections.count >= maximumSelections, let any = selections.keys.first {
+            selections[any] = nil
+        }
+        selections[query] = identity(of: item)
+        UserDefaults.standard.set(selections, forKey: selectionsKey)
+    }
+
+    /// What a row stands for, the same from one query to the next.
+    static func identity(of item: CommandBarItem) -> String {
+        switch item.kind {
+        case let .navigate(url), let .open(url): "url:\(url)"
+        case let .search(query): "search:\(query.lowercased())"
+        case let .siteSearch(site, query): "site:\(site.domain):\(query.lowercased())"
+        case let .switchToTab(id): "tab:\(id.uuidString)"
+        case let .command(id): "command:\(id)"
+        }
+    }
+
     /// Completes `text` with the first well-known site whose domain starts
     /// with it, keeping what was typed.
     static func completion(for text: String) -> CommandBarCompletion? {
         guard let site = sites(matching: text).first else { return nil }
         return CommandBarCompletion(text: text + site.domain.dropFirst(text.count), url: site.url, title: site.name)
+    }
+
+    /// Completes `text` with a site Google suggests strongly whose address
+    /// starts with it, as Arc does once suggestions arrive ("zoom" →
+    /// zoomalia.com, relevance 1249; not "help" → helpmariage.fr, 601).
+    static func suggestedCompletion(_ navigations: [SearchSuggestions.Navigation], _ text: String) -> CommandBarCompletion? {
+        let typed = text.lowercased()
+        guard !typed.isEmpty, !typed.contains(" ") else { return nil }
+        for navigation in navigations where navigation.relevance >= 1200 {
+            guard let host = URLDisplay.host(of: navigation.url), host.hasPrefix(typed), host.count > typed.count
+            else { continue }
+            return CommandBarCompletion(text: text + host.dropFirst(text.count), url: navigation.url, title: host)
+        }
+        return nil
     }
 
     /// Well-known sites whose domain starts with `text`, the most visited
@@ -29,34 +79,67 @@ enum CommandBarRanking {
         return sites.filter { $0.domain.hasPrefix(typed) && $0.domain.count > typed.count }
     }
 
-    static func arrange(_ items: [CommandBarItem], _ typedText: String) -> [CommandBarItem] {
+    /// Whether Arc lists `command` for `query`: a word starts its title's
+    /// first word or one of its keywords ("view" finds View Source, not New
+    /// Split View), or the query starts its title.
+    static func matches(_ command: CommandBarCommand, _ query: String) -> Bool {
+        let title = command.title.lowercased()
+        let firstWord = title.split(separator: " ").first.map(String.init) ?? title
+        return firstWord.hasPrefix(query) || title.hasPrefix(query)
+            || command.keywords.contains { $0.lowercased().hasPrefix(query) }
+    }
+
+    static func arrange(_ items: [CommandBarItem], _ typedText: String,
+                        commands catalog: [CommandBarCommand] = []) -> [CommandBarItem] {
         let query = typedText.trimmingCharacters(in: .whitespaces).lowercased()
         guard !query.isEmpty else { return items }
         // A well-known site shows its name and address, with its favicon.
         let completion = items.filter { $0.id == "completion" }.map { item -> CommandBarItem in
-            guard let site = sites.first(where: { $0.url == item.url }) else { return item }
             var row = item
-            row.title = site.name
-            row.subtitle = site.url
-            row.symbol = nil
+            if let site = sites.first(where: { $0.url == item.url }) {
+                row.title = site.name
+                row.subtitle = site.url
+                row.symbol = nil
+            } else if let url = item.url, URLDisplay.host(of: url) == item.title {
+                // A site Google suggested: its address, with its favicon.
+                row.subtitle = url
+                row.symbol = nil
+            }
             return row
         }
         let search = items.filter { $0.id == "search" || $0.id == "navigate" }
-        var commands = items.filter { if case .command = $0.kind { true } else { false } }
-        let tabs = items.filter { if case .switchToTab = $0.kind { true } else { false } }
+        let byID = Dictionary(catalog.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var commands = items.filter { item in
+            guard case let .command(id) = item.kind else { return false }
+            return byID[id].map { matches($0, query) } ?? true
+        }
+        var tabs = items.filter { if case .switchToTab = $0.kind { true } else { false } }
         let history = items.filter { $0.id.hasPrefix("history-") }
         let suggestions = items.filter { $0.id.hasPrefix("suggestion") || $0.id == "chatgpt" }
-        // Without a site, a command named after what was typed comes first.
+        // Without a site, Arc's command for that word comes first.
         var first = completion
-        if first.isEmpty, let index = commands.firstIndex(where: { $0.title.lowercased().hasPrefix(query) }) {
+        let trigger = triggers[query] ?? triggers.keys.sorted().first { query.count >= 3 && $0.hasPrefix(query) }
+            .flatMap { triggers[$0] }
+        if first.isEmpty, let id = trigger,
+           let index = commands.firstIndex(where: { $0.kind == .command(id) }) {
             first = [commands.remove(at: index)]
+        }
+        // Then an open tab named after what was typed.
+        if first.isEmpty, let index = tabs.firstIndex(where: { $0.title.lowercased().hasPrefix(query) }) {
+            first = [tabs.remove(at: index)]
         }
         let completed = Set(completion.compactMap(\.url))
         let otherSites = sites(matching: query).filter { !completed.contains($0.url) }.map { site in
             CommandBarItem(id: "site-\(site.domain)", kind: .open(url: site.url), title: site.name, subtitle: site.url,
                            url: site.url)
         }
-        return Array((first + search + otherSites + tabs + commands + history + suggestions).prefix(maximumRows))
+        var rows = first + search + otherSites + tabs + commands + history + suggestions
+        // The row chosen the last time this was typed.
+        let selections = UserDefaults.standard.dictionary(forKey: selectionsKey) as? [String: String]
+        if let chosen = selections?[query], let index = rows.firstIndex(where: { identity(of: $0) == chosen }) {
+            rows.insert(rows.remove(at: index), at: 0)
+        }
+        return Array(rows.prefix(maximumRows))
     }
 
     /// Popular sites, by domain.
@@ -74,13 +157,13 @@ enum CommandBarRanking {
         ("chatgpt.com", "ChatGPT"), ("claude.ai", "Claude"), ("openai.com", "OpenAI"), ("anthropic.com", "Anthropic"),
         ("microsoft.com", "Microsoft"), ("outlook.live.com", "Outlook"), ("office.com", "Microsoft 365"),
         ("apple.com", "Apple"), ("icloud.com", "iCloud"), ("github.com", "GitHub"), ("gitlab.com", "GitLab"),
-        ("stackoverflow.com", "Stack Overflow"), ("developer.mozilla.org", "MDN Web Docs"), ("npmjs.com", "npm"),
+        ("stackoverflow.com", "Stack Overflow"), ("npmjs.com", "npm"),
         ("notion.so", "Notion"), ("figma.com", "Figma"), ("slack.com", "Slack"), ("discord.com", "Discord"),
         ("zoom.us", "Zoom"), ("trello.com", "Trello"), ("asana.com", "Asana"), ("atlassian.com", "Atlassian"),
         ("linear.app", "Linear"), ("vercel.com", "Vercel"), ("dropbox.com", "Dropbox"), ("canva.com", "Canva"),
         ("adobe.com", "Adobe"), ("salesforce.com", "Salesforce"), ("shopify.com", "Shopify"),
         ("twitch.tv", "Twitch"), ("tiktok.com", "TikTok"), ("pinterest.com", "Pinterest"),
-        ("tumblr.com", "Tumblr"), ("whatsapp.com", "WhatsApp"), ("web.whatsapp.com", "WhatsApp Web"),
+        ("pinterest.co.uk", "Pinterest UK"), ("tumblr.com", "Tumblr"), ("whatsapp.com", "WhatsApp"), ("web.whatsapp.com", "WhatsApp Web"),
         ("telegram.org", "Telegram"), ("web.telegram.org", "Telegram Web"), ("signal.org", "Signal"),
         ("spotify.com", "Spotify"), ("soundcloud.com", "SoundCloud"), ("vimeo.com", "Vimeo"),
         ("hulu.com", "Hulu"), ("disneyplus.com", "Disney+"), ("primevideo.com", "Prime Video"),
@@ -96,11 +179,12 @@ enum CommandBarRanking {
         ("wsj.com", "The Wall Street Journal"), ("bbc.com", "BBC"), ("cnn.com", "CNN"), ("reuters.com", "Reuters"),
         ("bloomberg.com", "Bloomberg"), ("forbes.com", "Forbes"), ("theverge.com", "The Verge"),
         ("medium.com", "Medium"), ("substack.com", "Substack"), ("quora.com", "Quora"),
-        ("archive.org", "Internet Archive"), ("wikihow.com", "wikiHow"), ("fandom.com", "Fandom"),
+        ("archive.org", "Internet Archive"), ("archiveofourown.org", "Archive of Our Own"), ("wikihow.com", "wikiHow"), ("fandom.com", "Fandom"),
         ("weather.com", "The Weather Channel"), ("espn.com", "ESPN"), ("nba.com", "NBA"),
         ("store.steampowered.com", "Steam"), ("epicgames.com", "Epic Games"), ("roblox.com", "Roblox"),
         ("xbox.com", "Xbox"), ("playstation.com", "PlayStation"), ("nintendo.com", "Nintendo"),
         ("coursera.org", "Coursera"), ("khanacademy.org", "Khan Academy"), ("duolingo.com", "Duolingo"),
-        ("deepl.com", "DeepL"), ("wordpress.com", "WordPress"), ("mozilla.org", "Mozilla"), ("proton.me", "Proton"),
+        ("deepl.com", "DeepL"), ("tabelog.com", "Tabelog"), ("themeforest.net", "ThemeForest"),
+        ("windows.net", "Windows Azure"), ("networkadvertising.org", "Network Advertising Initiative"), ("wordpress.com", "WordPress"), ("mozilla.org", "Mozilla"), ("proton.me", "Proton"),
     ].map { Site(domain: $0.0, name: $0.1) }
 }

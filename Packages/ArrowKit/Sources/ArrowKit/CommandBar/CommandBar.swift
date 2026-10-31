@@ -237,12 +237,20 @@ public struct CommandBarRanker: Sendable {
 
 /// Parses an OpenSearch suggestions response (`["query", ["a", "b"]]`).
 public enum SearchSuggestions {
+    /// A site the engine suggests going to, with its relevance (Google's
+    /// "NAVIGATION" suggestions).
+    public struct Navigation: Hashable, Sendable {
+        public var url: String
+        public var relevance: Int
+
+        public init(url: String, relevance: Int) {
+            self.url = url
+            self.relevance = relevance
+        }
+    }
+
     public static func parse(_ data: Data) -> [String] {
-        // Google answers in ISO-8859-1 when a suggestion has an accent
-        // ("traduction français").
-        let json = (try? JSONSerialization.jsonObject(with: data))
-            ?? String(data: data, encoding: .isoLatin1).flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) }
-        guard let json else { return [] }
+        guard let json = json(data) else { return [] }
         if let array = json as? [Any], array.count >= 2, let values = array[1] as? [String] {
             return values
         }
@@ -250,5 +258,25 @@ public enum SearchSuggestions {
             return objects.compactMap { $0["phrase"] as? String }
         }
         return []
+    }
+
+    /// The navigational suggestions of a Google answer (its "chrome" client
+    /// lists their types and relevance).
+    public static func navigations(_ data: Data) -> [Navigation] {
+        guard let array = json(data) as? [Any], array.count >= 5, let values = array[1] as? [String],
+              let metadata = array[4] as? [String: Any],
+              let types = metadata["google:suggesttype"] as? [String] else { return [] }
+        let relevances = metadata["google:suggestrelevance"] as? [Int] ?? []
+        return zip(values, types).enumerated().compactMap { index, suggestion in
+            guard suggestion.1 == "NAVIGATION" else { return nil }
+            return Navigation(url: suggestion.0, relevance: relevances.indices.contains(index) ? relevances[index] : 0)
+        }
+    }
+
+    // Google answers in ISO-8859-1 when a suggestion has an accent
+    // ("traduction français").
+    private static func json(_ data: Data) -> Any? {
+        (try? JSONSerialization.jsonObject(with: data))
+            ?? String(data: data, encoding: .isoLatin1).flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) }
     }
 }
