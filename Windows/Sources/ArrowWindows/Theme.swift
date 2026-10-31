@@ -103,6 +103,10 @@ enum Glyph {
     static let split = "\u{E89A}"
     static let globe = "\u{E774}"
     static let clear = "\u{E74B}"
+    static let search = "\u{E721}"
+    static let history = "\u{E81C}"
+    static let pin = "\u{E718}"
+    static let undo = "\u{E7A7}"
 
     static let font = FontFamily("Segoe Fluent Icons")
 
@@ -115,6 +119,23 @@ enum Glyph {
         view.verticalAlignment = .center
         view.horizontalAlignment = .center
         return view
+    }
+
+    /// The glyph for an SF Symbol of the shared code (the command bar's
+    /// rows), the globe for others.
+    static func symbol(_ name: String) -> String {
+        switch name {
+        case "magnifyingglass": search
+        case "clock": history
+        case "link": link
+        case "pin": pin
+        case "sidebar.left": sidebar
+        case "arrow.left.square": back
+        case "arrow.right.square": forward
+        case "xmark.circle": close
+        case "arrow.uturn.backward": undo
+        default: globe
+        }
     }
 }
 

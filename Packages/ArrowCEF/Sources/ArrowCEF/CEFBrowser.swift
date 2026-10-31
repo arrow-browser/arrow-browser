@@ -20,6 +20,11 @@ public final class CEFBrowser: @unchecked Sendable {
     #endif
     public let requestContext: CEFRequestContext
     @MainActor public weak var delegate: (any BrowserEngineDelegate)?
+    /// Called with each key pressed while the page has the keyboard, before
+    /// the page gets it; returning true keeps the key from the page. Where
+    /// no menu bar takes the app's keyboard shortcuts first (Windows), the
+    /// app takes them here.
+    @MainActor public var keyDownHandler: ((CEFKeyEvent) -> Bool)?
 
     @MainActor public private(set) var browser: CefRef<cef_browser_t>?
     @MainActor public private(set) var isClosing = false
@@ -35,6 +40,7 @@ public final class CEFBrowser: @unchecked Sendable {
     private var contextMenuHandler: CefHandler<cef_context_menu_handler_t>!
     private var findHandler: CefHandler<cef_find_handler_t>!
     private var focusHandler: CefHandler<cef_focus_handler_t>!
+    private var keyboardHandler: CefHandler<cef_keyboard_handler_t>!
     private var permissionHandler: CefHandler<cef_permission_handler_t>!
     private var devToolsObserver: CefHandler<cef_dev_tools_message_observer_t>!
 
@@ -340,6 +346,7 @@ public final class CEFBrowser: @unchecked Sendable {
             client.get_context_menu_handler = { CEFBrowser.owner($0)?.contextMenuHandler.retained() }
             client.get_find_handler = { CEFBrowser.owner($0)?.findHandler.retained() }
             client.get_focus_handler = { CEFBrowser.owner($0)?.focusHandler.retained() }
+            client.get_keyboard_handler = { CEFBrowser.owner($0)?.keyboardHandler.retained() }
             client.get_permission_handler = { CEFBrowser.owner($0)?.permissionHandler.retained() }
             client.get_download_handler = { _ in CEFDownloadCenter.shared.handler.retained() }
         }
@@ -620,6 +627,17 @@ public final class CEFBrowser: @unchecked Sendable {
                 defer { cefRelease(browser) }
                 guard let owner = CEFBrowser.owner(handler) else { return }
                 MainActor.assumeIsolated { owner.delegate?.browserDidGainFocus(owner) }
+            }
+        }
+
+        keyboardHandler = CefHandler(owner: self) { handler in
+            handler.on_pre_key_event = { handler, browser, event, _, _ in
+                defer { cefRelease(browser) }
+                guard let owner = CEFBrowser.owner(handler), let event, event.pointee.type == KEYEVENT_RAWKEYDOWN else {
+                    return 0
+                }
+                let key = CEFKeyEvent(event.pointee)
+                return MainActor.assumeIsolated { owner.keyDownHandler?(key) == true ? 1 : 0 }
             }
         }
 

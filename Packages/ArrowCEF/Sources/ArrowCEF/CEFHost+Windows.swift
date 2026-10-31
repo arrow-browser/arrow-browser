@@ -17,9 +17,13 @@ public final class CEFHostWindow {
     }
 
     public init(frame: CGRect) {
+        // Layered, as Arc's browser window is: the mouse input over a child
+        // window of a WinUI window (Microsoft.UI.Xaml.Window) goes to WinUI
+        // unless the child is layered.
         handle = CEFHostWindow.create(
-            style: DWORD(WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS),
+            style: DWORD(WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS), exStyle: DWORD(WS_EX_LAYERED),
             frame: frame, parent: CEFParkingLot.window)
+        SetLayeredWindowAttributes(handle, 0, 255, DWORD(LWA_ALPHA))
     }
 
     isolated deinit {
@@ -80,11 +84,11 @@ public final class CEFHostWindow {
 
     private static let className = Array("ArrowCEFHost".utf16) + [0]
 
-    static func create(style: DWORD, frame: CGRect, parent: HWND?) -> HWND {
+    static func create(style: DWORD, exStyle: DWORD = 0, frame: CGRect, parent: HWND?) -> HWND {
         registerClass()
         let instance = GetModuleHandleW(nil)
         return className.withUnsafeBufferPointer { name in
-            CreateWindowExW(0, name.baseAddress, nil, style, Int32(frame.minX), Int32(frame.minY),
+            CreateWindowExW(exStyle, name.baseAddress, nil, style, Int32(frame.minX), Int32(frame.minY),
                             Int32(max(frame.width, 1)), Int32(max(frame.height, 1)), parent, nil, instance, nil)!
         }
     }
@@ -122,11 +126,14 @@ private func hostWindowProcedure(_ window: HWND?, _ message: UINT, _ wParam: WPA
 }
 
 /// Hidden window holding browser windows that are not displayed, so
-/// Chromium always has a parent window to create them in.
+/// Chromium always has a parent window to create them in. Disabled: a
+/// browser created there would otherwise activate it, and take the keyboard
+/// out of the app's windows.
 @MainActor
 enum CEFParkingLot {
     static let window: HWND = CEFHostWindow.create(
-        style: DWORD(WS_OVERLAPPED | WS_CLIPCHILDREN), frame: CGRect(x: 0, y: 0, width: 1280, height: 800), parent: nil)
+        style: DWORD(WS_OVERLAPPED | WS_CLIPCHILDREN | WS_DISABLED), frame: CGRect(x: 0, y: 0, width: 1280, height: 800),
+        parent: nil)
 }
 
 extension cef_window_info_t {

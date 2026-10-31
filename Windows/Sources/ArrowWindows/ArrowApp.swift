@@ -102,6 +102,8 @@ final class ArrowApp {
         }
         guard smoke else {
             for address in addresses { window.openNewTab(address) }
+            // Like Arc, an empty window starts with the command bar.
+            if window.state.selectedTabID == nil { window.showCommandBar(mode: .newTab) }
             return
         }
         window.savesSelection = false

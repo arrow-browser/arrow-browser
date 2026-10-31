@@ -144,7 +144,13 @@ Done when a window with one CEF browser runs on Windows and Linux.
   `Platform`; logins, cards and Arrow Cloud's secrets are generic
   credentials of the Credential Manager, which encrypts them with DPAPI.
   - The browser is a child window of the WinUI window's, kept over the area
-    the XAML layout leaves it, its corners rounded by a window region.
+    the XAML layout leaves it, its corners rounded by a window region. It is
+    layered, as Arc's: WinUI takes the mouse input over its window's other
+    child windows. Browsers not shown wait in a hidden, disabled window,
+    which a browser created there cannot activate.
+  - The command bar is a windowed popup, over the browser. The browser
+    reports keys before the page gets them (CEF's keyboard handler), for
+    the keyboard shortcuts, which no menu bar takes first as on macOS.
   - WinUI runs the message loop. CEF's external message pump runs its work
     from a hidden window's messages and timer, so it also runs in modal loops
     (moving, resizing a window), and runs the main queue.
