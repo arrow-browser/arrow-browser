@@ -124,6 +124,56 @@ extension BrowserWindow {
         if let restored { select(restored.tab.id) }
     }
 
+    // MARK: - Capture and boosts
+
+    /// Saves an image of the page in the Downloads folder.
+    func capture(_ tab: WebTab) {
+        guard let engine = tab.engine else { return }
+        Task {
+            guard let data = await engine.captureScreenshot() else { return }
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
+            let file = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads")
+                .appendingPathComponent("Arrow Capture \(formatter.string(from: Date())).png")
+            guard (try? data.write(to: file)) != nil else { return }
+            store.playSound(.event)
+            state.showToast("Capture saved to Downloads")
+        }
+    }
+
+    /// The site's boost: its custom CSS, on or off.
+    func editBoost(for tab: WebTab) {
+        guard let host = URLDisplay.host(of: tab.url) else { return }
+        let domain = host.replacingOccurrences(of: "www.", with: "")
+        var boost = store.boosts.first { $0.domain == domain } ?? Boost(name: domain, domain: domain)
+        let enabled = ToggleSwitch()
+        enabled.header = "Boost \(domain)"
+        enabled.onContent = "On"
+        enabled.offContent = "Off"
+        enabled.isOn = boost.isEnabled
+        let css = TextBox()
+        css.header = "CSS"
+        css.text = boost.css
+        css.acceptsReturn = true
+        css.textWrapping = .wrap
+        css.height = 180
+        css.fontFamily = FontFamily("Cascadia Mono, Consolas")
+        css.placeholderText = "body { font-size: 18px; }"
+        let content = StackPanel()
+        content.spacing = 12
+        content.children.append(enabled)
+        content.children.append(css)
+        Sheet(window: self, title: "Boost This Site", content: content, width: 480, actions: [
+            Sheet.Action(title: "Save", isPrimary: true) { [weak self] in
+                boost.isEnabled = enabled.isOn
+                boost.css = css.text
+                self?.store.saveBoost(boost)
+                return true
+            },
+            Sheet.Action(title: "Cancel"),
+        ]).show(focusing: css)
+    }
+
     // MARK: - Task manager
 
     /// Arc's task manager: the open tabs, each of which can be closed.

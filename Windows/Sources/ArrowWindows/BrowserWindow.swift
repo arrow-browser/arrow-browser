@@ -224,6 +224,7 @@ final class BrowserWindow {
         guard let url = selectedTab?.url, !url.isEmpty else { return }
         store.platform.copyToClipboard(url)
         store.playSound(.event)
+        state.showToast("Copied URL to clipboard")
     }
 
     func togglePinTab() {
@@ -924,9 +925,13 @@ extension BrowserWindow: TabHost {
         try? window.appWindow.setPresenter(fullscreen ? .fullScreen : .default)
     }
 
-    func tabRequestsBoostEditor(_ tab: WebTab) {}
+    func tabRequestsBoostEditor(_ tab: WebTab) {
+        editBoost(for: tab)
+    }
 
-    func tabRequestsCapture(_ tab: WebTab) {}
+    func tabRequestsCapture(_ tab: WebTab) {
+        capture(tab)
+    }
 
     func isDisplaying(_ tab: WebTab) -> Bool {
         state.selectedTabID == tab.id

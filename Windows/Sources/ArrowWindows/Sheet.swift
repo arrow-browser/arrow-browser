@@ -88,7 +88,8 @@ final class Sheet {
                 _ = cancel?.perform()
                 close()
             case .enter:
-                guard let primary else { return }
+                // Enter makes a new line in a multi-line field (a boost's CSS).
+                guard let primary, (event.originalSource as? TextBox)?.acceptsReturn != true else { return }
                 event.handled = true
                 if primary.perform() { close() }
             default:

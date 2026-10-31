@@ -110,7 +110,6 @@ extension BrowserWindow {
         share.click.addHandler { [weak self] _, _ in
             try? flyout.hide()
             self?.copyURL()
-            self?.state.showToast("Copied URL to clipboard")
         }
         content.children.append(share)
         content.children.append(separator())
