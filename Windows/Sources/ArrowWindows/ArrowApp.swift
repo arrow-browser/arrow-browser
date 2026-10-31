@@ -99,6 +99,8 @@ final class ArrowApp {
     }
 
     fileprivate func launched() {
+        // Arc's teaching tips (Translate's) are as wide as their content.
+        _ = Application.current.resources.insert("TeachingTipMinWidth", 0.0)
         guard let window = open(store) else { return }
         guard smoke else {
             LiveFolders.shared.start(store: store)

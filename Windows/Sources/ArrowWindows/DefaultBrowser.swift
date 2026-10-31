@@ -31,7 +31,12 @@ enum DefaultBrowser {
             set("Software\\Classes\\\(progID)", nil, title)
             set("Software\\Classes\\\(progID)\\DefaultIcon", nil, icon)
             set("Software\\Classes\\\(progID)\\shell\\open\\command", nil, open)
+            // The name Windows shows for it (its "Select an app" picker), not
+            // the description of CEF's bootstrap executable.
+            set("Software\\Classes\\\(progID)\\Application", "ApplicationName", "Arrow")
+            set("Software\\Classes\\\(progID)\\Application", "ApplicationIcon", icon)
         }
+        set("Software\\Classes\\Applications\\\(executableName)", "FriendlyAppName", "Arrow")
         set("Software\\Classes\\ArrowURL", "URL Protocol", "")
         // SHCNE_ASSOCCHANGED, SHCNF_IDLIST: Explorer reads the associations again.
         SHChangeNotify(0x0800_0000, 0, nil, nil)
@@ -45,6 +50,10 @@ enum DefaultBrowser {
         var buffer = [WCHAR](repeating: 0, count: Int(MAX_PATH) * 2)
         let length = GetModuleFileNameW(nil, &buffer, DWORD(buffer.count))
         return String(decoding: buffer.prefix(Int(length)), as: UTF16.self)
+    }
+
+    private static var executableName: String {
+        URL(fileURLWithPath: executablePath).lastPathComponent
     }
 
     /// HKEY_CURRENT_USER, a macro Swift does not import.

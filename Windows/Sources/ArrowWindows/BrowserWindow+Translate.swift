@@ -27,13 +27,15 @@ extension BrowserWindow {
         Locale(identifier: code).localizedString(forLanguageCode: code) ?? code
     }
 
+    /// Arc's Translate: a teaching tip pointing at the toolbar's globe.
     func showTranslate(under anchor: FrameworkElement) {
         guard let tab = selectedTab else { return }
-        let flyout = Flyout()
-        flyout.shouldConstrainToRootBounds = false
-        flyout.placement = .bottom
+        let tip = TeachingTip()
+        tip.shouldConstrainToRootBounds = false
+        tip.preferredPlacement = .bottom
+        tip.isLightDismissEnabled = true
         let content = StackPanel()
-        content.spacing = 10
+        content.spacing = 8
         let question = TextBlock()
         let isTranslated = translatedTabs[tab.id] == tab.url
         question.text = isTranslated
@@ -48,7 +50,7 @@ extension BrowserWindow {
         primary.minWidth = 103
         primary.height = 34
         primary.click.addHandler { [weak self] _, _ in
-            try? flyout.hide()
+            tip.isOpen = false
             if isTranslated {
                 self?.showOriginal(tab)
             } else {
@@ -61,31 +63,31 @@ extension BrowserWindow {
         options.height = 34
         options.click.addHandler { [weak self] _, _ in
             guard let self else { return }
-            Menu.show(translateOptions(for: tab, closing: flyout), under: options)
+            Menu.show(translateOptions(for: tab, closing: tip), above: options)
         }
         buttons.children.append(primary)
         buttons.children.append(options)
         content.children.append(buttons)
-        flyout.content = content
-        try? flyout.showAt(anchor)
+        tip.content = content
+        show(tip, pointingAt: anchor)
     }
 
-    private func translateOptions(for tab: WebTab, closing flyout: Flyout) -> MenuFlyout {
+    private func translateOptions(for tab: WebTab, closing tip: TeachingTip) -> MenuFlyout {
         let host = URLDisplay.host(of: tab.url).map(URLDisplay.registrableDomain) ?? ""
         return Menu.flyout([
             Menu.submenu("Choose Another Language", Self.translationLanguages.map { code in
                 Menu.item(Self.languageName(code).capitalized) { [weak self] in
-                    try? flyout.hide()
+                    tip.isOpen = false
                     self?.translate(tab, to: code)
                 }
             }),
             Menu.item("Never Translate This Site", isEnabled: !host.isEmpty) { [weak self] in
-                try? flyout.hide()
+                tip.isOpen = false
                 guard let self, !store.settings.neverTranslateSites.contains(host) else { return }
                 store.settings.neverTranslateSites.append(host)
             },
             Menu.item("Language Settings") {
-                try? flyout.hide()
+                tip.isOpen = false
                 SettingsWindow.show(section: .general)
             },
         ])

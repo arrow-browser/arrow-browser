@@ -19,15 +19,47 @@ struct CommandCatalogTests {
         #expect(Shortcut.tab(8).label == "Ctrl+9")
     }
 
-    @Test func offersCommandsWithTheirShortcuts() {
+    @Test func offersArcsCommandsWithTheirShortcuts() {
         let shortcuts = Dictionary(uniqueKeysWithValues: CommandCatalog.commands.map { ($0.id, $0.shortcut) })
-        #expect(shortcuts["copy-url"] == "Ctrl+Shift+C")
-        #expect(shortcuts["toggle-sidebar"] == "Ctrl+S")
-        #expect(shortcuts["reopen"] == "Ctrl+Shift+T")
-        #expect(shortcuts["find"] == "Ctrl+F")
-        #expect(shortcuts["new-window"] == "Ctrl+N")
-        #expect(shortcuts["incognito"] == "Ctrl+Shift+N")
-        #expect(shortcuts["new-space"] != nil)
+        // As Arc's command bar writes them.
+        #expect(shortcuts["copy-url"] == "Control+Shift+C")
+        #expect(shortcuts["toggle-sidebar"] == "Control+S")
+        #expect(shortcuts["reopen"] == "Control+Shift+T")
+        #expect(shortcuts["close-tab"] == "Control+W")
+        #expect(shortcuts["fullscreen"] == "F11")
+        // Arc's commands on Windows, not the Mac's.
+        let titles = Set(CommandCatalog.commands.map(\.title))
+        #expect(titles.isSuperset(of: ["Copy Current URL", "Duplicate Current Tab", "Reload Current Tab",
+                                       "Force Reload Current Tab", "Enter Fullscreen", "Rename Current Tab…"]))
+        #expect(!titles.contains("Translate Page"))
+        #expect(!titles.contains("New Window"))
+        // Ctrl+F and Ctrl+N stay shortcuts.
+        #expect(CommandCatalog.handles(Shortcut.find))
+        #expect(CommandCatalog.handles(Shortcut.newWindow))
+    }
+
+    @Test func ranksAsArcOnWindows() {
+        let completion = CommandBarRanking.completion(for: "transl")
+        #expect(completion?.text == "translate.google.com")
+        #expect(completion?.title == "Google Translate")
+        let items = [
+            CommandBarItem(id: "completion", kind: .open(url: "https://translate.google.com/"), title: "Google Translate",
+                           subtitle: "translate.google.com", url: "https://translate.google.com/", symbol: "clock"),
+            CommandBarItem(id: "search", kind: .search(query: "transl"), title: "transl", subtitle: "Search Google"),
+        ] + (1...6).map { CommandBarItem(id: "suggestion-\($0)", kind: .search(query: "s\($0)"), title: "s\($0)") }
+        let rows = CommandBarRanking.arrange(items, "transl")
+        #expect(rows.count == CommandBarRanking.maximumRows)
+        #expect(rows[0].subtitle == "https://translate.google.com/")
+        #expect(rows[0].symbol == nil)
+        #expect(rows[1].id == "search")
+        // Without a site, a command named after the text comes first.
+        let commandRows = CommandBarRanking.arrange([
+            CommandBarItem(id: "search", kind: .search(query: "copy"), title: "copy"),
+            CommandBarItem(id: "command-copy-url", kind: .command("copy-url"), title: "Copy Current URL"),
+        ], "copy")
+        #expect(commandRows.map(\.id) == ["command-copy-url", "search"])
+        // Other well-known sites follow the search.
+        #expect(CommandBarRanking.sites(matching: "new").map(\.name).prefix(2) == ["Google News", "Yahoo News"])
     }
 
     @Test func leavesOtherKeysToThePage() {

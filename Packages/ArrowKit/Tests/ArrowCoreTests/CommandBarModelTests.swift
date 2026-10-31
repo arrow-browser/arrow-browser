@@ -29,6 +29,29 @@ struct CommandBarModelTests {
         return CommandBarModel(mode: .newTab, anchor: .center, initialText: initialText, sources: sources)
     }
 
+    @Test func completesAndOrdersAsThePlatformDoes() {
+        let history = history
+        let settings = settings
+        var sources = CommandBarModel.Sources(openTabs: { [] }, history: { history }, commands: [],
+                                              engine: { settings.searchEngine }, settings: { settings },
+                                              currentTabID: nil)
+        sources.fallbackCompletion = { text in
+            guard "translate.google.com".hasPrefix(text) else { return nil }
+            return CommandBarCompletion(text: "translate.google.com", url: "https://translate.google.com/",
+                                        title: "Google Translate")
+        }
+        sources.arrange = { items, _ in Array(items.reversed()) }
+        let model = CommandBarModel(mode: .newTab, anchor: .center, sources: sources)
+        // History first: "Sw" completes to Swift's site.
+        model.text = "Sw"
+        #expect(model.completion?.url == "https://www.swift.org/")
+        model.text = ""
+        model.text = "tr"
+        #expect(model.text == "translate.google.com")
+        #expect(model.completion?.title == "Google Translate")
+        #expect(model.items.last?.kind == .open(url: "https://translate.google.com/"))
+    }
+
     @Test func typingForwardCompletesFromHistoryAndSelectsTheCompletion() throws {
         let model = makeModel()
         model.text = "Sw"

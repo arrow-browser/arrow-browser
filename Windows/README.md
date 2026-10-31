@@ -11,17 +11,21 @@ Its interface is Arc's on Windows, in look and in function:
   navigation, the address with Copy Link and the Site Control Center (its
   Share URL opens Windows' share sheet), Translate (in the page, into
   Windows' display language) and Split View Options.
-- The sidebar: the favorites, the space's pinned tabs and folders (GitHub
-  Live Folders among them), the "Clear" divider, New Tab, today's tabs;
-  Arc's context menus (tab, favorite, folder, space), renaming in place,
-  dragging to reorder, pin or file away; the media controls of a tab
-  playing out of sight; the archive, the space switcher and the Add menu at
-  the bottom.
-- The command bar (Ctrl+T, Ctrl+L), find in page (Ctrl+F), downloads, split
-  views of up to four panes, Peek for links leaving pinned tabs, Little Arrow for links
-  from other apps, new and incognito windows, and the settings window (with
-  the Arrow Card). Set Arrow as Default Browser registers Arrow with Windows
-  and opens its Default apps page.
+- The sidebar: the favorites, the space's pinned tabs and folders (the
+  GitHub Live Folder among them: the open pull requests of the user signed
+  in to GitHub, read from github.com as Arc does), the "Clear" divider, New
+  Tab, today's tabs; Arc's context menus (tab, favorite, folder, space),
+  renaming in place, dragging to reorder, pin or file away; the media
+  controls of a tab playing out of sight; the archive, the space switcher
+  and the Add menu at the bottom.
+- The command bar (Ctrl+T, Ctrl+L) as Arc's on Windows: five rows, a
+  well-known site completed in the field, the search, Arc's commands with
+  their shortcuts, open tabs and suggestions.
+- Find in page (Ctrl+F), history, downloads, split views of up to four
+  panes, Peek for links leaving pinned tabs, Little Arrow for links from
+  other apps, new and incognito windows, and the settings window (with the
+  Arrow Card). Set Arrow as Default Browser registers Arrow with Windows and
+  opens its Default apps page.
 - The space's theme over the Mica backdrop, titles in a dark shade of its
   hue; dialogs for creating spaces, their icon and theme color.
 

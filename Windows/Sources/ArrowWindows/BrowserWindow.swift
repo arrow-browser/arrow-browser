@@ -135,6 +135,19 @@ final class BrowserWindow {
     /// The window's content, which popups and sheets open over.
     var content: FrameworkElement { root }
 
+    /// Opens a teaching tip pointing at `target`, in the window until it
+    /// closes.
+    func show(_ tip: TeachingTip, pointingAt target: FrameworkElement) {
+        root.children.append(tip)
+        tip.closed.addHandler { [weak self] sender, _ in
+            var index: UInt32 = 0
+            guard let self, root.children.indexOf(sender, &index) else { return }
+            root.children.removeAt(index)
+        }
+        tip.target = target
+        tip.isOpen = true
+    }
+
     var selectedTab: WebTab? {
         state.selectedTabID.flatMap { store.webTab($0) }
     }
@@ -148,6 +161,12 @@ final class BrowserWindow {
     /// Closes every browser, then the window.
     func close() {
         try? window.close()
+    }
+
+    /// Enter Fullscreen: the window fills the screen, or leaves it.
+    func toggleFullscreen() {
+        let isFullscreen = window.appWindow.presenter.kind == .fullScreen
+        try? window.appWindow.setPresenter(isFullscreen ? .default : .fullScreen)
     }
 
     // MARK: - Selection
@@ -730,18 +749,21 @@ final class BrowserWindow {
     func showCommandBar(mode: CommandBarModel.Mode, placement: CommandBar.Placement = .center, text: String = "") {
         commandBar?.close()
         let store = store
-        let sources = CommandBarModel.Sources(
+        var sources = CommandBarModel.Sources(
             openTabs: {
                 store.state.spaces.flatMap { space in
                     space.allTabs.map { CommandBarTab(tab: $0, spaceTitle: store.state.spaces.count > 1 ? space.title : nil) }
                 } + store.state.favorites.values.flatMap { $0.map { CommandBarTab(tab: $0, spaceTitle: nil) } }
             },
             history: { store.history },
-            commands: CommandCatalog.commands,
+            commands: CommandCatalog.commands + CommandCatalog.spaceCommands(store.state.spaces),
             engine: { store.settings.searchEngine },
             settings: { store.settings },
             currentTabID: state.selectedTabID
         )
+        // Arc's on Windows.
+        sources.fallbackCompletion = CommandBarRanking.completion(for:)
+        sources.arrange = CommandBarRanking.arrange
         let model = CommandBarModel(mode: mode, anchor: .center, initialText: text, sources: sources)
         let bar = CommandBar(model: model, placement: placement, window: self)
         bar.onClose = { [weak self, weak bar] in

@@ -77,6 +77,12 @@ enum Menu {
         try? menu.showAt(button)
     }
 
+    /// Opens `menu` above `button`, centered (Translate's Options).
+    static func show(_ menu: FlyoutBase, above button: FrameworkElement) {
+        menu.placement = .top
+        try? menu.showAt(button)
+    }
+
     /// Opens `menu` at the pointer's position in `element` (a right click).
     static func show(_ menu: MenuFlyout, at point: Point, in element: UIElement) {
         try? menu.showAt(element, point)

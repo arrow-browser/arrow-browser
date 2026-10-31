@@ -58,6 +58,13 @@ public final class CommandBarModel {
         public var engine: () -> SearchEngine
         public var settings: () -> ArrowSettings
         public var currentTabID: UUID?
+        /// The platform's completion of typed text history does not complete
+        /// (Arc on Windows completes well-known sites: "transl" →
+        /// translate.google.com).
+        public var fallbackCompletion: (String) -> CommandBarCompletion? = { _ in nil }
+        /// The platform's order of the ranked rows for the typed text (Arc on
+        /// Windows shows five, its commands among the first).
+        public var arrange: ([CommandBarItem], String) -> [CommandBarItem] = { items, _ in items }
 
         public init(openTabs: @escaping () -> [CommandBarTab], history: @escaping () -> History,
                     commands: [CommandBarCommand], engine: @escaping () -> SearchEngine,
@@ -123,7 +130,8 @@ public final class CommandBarModel {
         guard !isCompleting else { return }
         let typedForward = text.count > typedText.count && text.lowercased().hasPrefix(typedText.lowercased())
         typedText = text
-        completion = typedForward && activeSiteSearch == nil ? ranker.completion(for: text, history: sources.history()) : nil
+        completion = typedForward && activeSiteSearch == nil
+            ? ranker.completion(for: text, history: sources.history()) ?? sources.fallbackCompletion(text) : nil
         if let completion {
             isCompleting = true
             text = completion.text
@@ -150,6 +158,7 @@ public final class CommandBarModel {
                                      subtitle: "Ask ChatGPT", url: "https://chatgpt.com")
             items.insert(row, at: min(items.count, completion == nil ? 1 : 2))
         }
+        if activeSiteSearch == nil { items = sources.arrange(items, typedText) }
         selectedIndex = min(selectedIndex, max(items.count - 1, 0))
         if typedText.isEmpty { selectedIndex = 0 }
     }

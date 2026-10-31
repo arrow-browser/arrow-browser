@@ -238,7 +238,11 @@ public struct CommandBarRanker: Sendable {
 /// Parses an OpenSearch suggestions response (`["query", ["a", "b"]]`).
 public enum SearchSuggestions {
     public static func parse(_ data: Data) -> [String] {
-        guard let json = try? JSONSerialization.jsonObject(with: data) else { return [] }
+        // Google answers in ISO-8859-1 when a suggestion has an accent
+        // ("traduction français").
+        let json = (try? JSONSerialization.jsonObject(with: data))
+            ?? String(data: data, encoding: .isoLatin1).flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) }
+        guard let json else { return [] }
         if let array = json as? [Any], array.count >= 2, let values = array[1] as? [String] {
             return values
         }

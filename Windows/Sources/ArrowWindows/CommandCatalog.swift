@@ -1,6 +1,7 @@
 import ArrowCEF
 import ArrowCore
 import ArrowKit
+import Foundation
 import WinSDK
 
 /// Arc's keyboard shortcuts on Windows (Ctrl for the Mac's ⌘, Alt for ⌥),
@@ -11,6 +12,8 @@ enum Shortcut {
     static let commandBar = CEFKeyEvent.key("L", .control)
     static let closeTab = CEFKeyEvent.key("W", .control)
     static let reload = CEFKeyEvent.key("R", .control)
+    static let forceReload = CEFKeyEvent.key("R", [.control, .shift])
+    static let fullscreen = CEFKeyEvent.key(VK_F11)
     static let back = CEFKeyEvent.key(VK_LEFT, .alt)
     static let forward = CEFKeyEvent.key(VK_RIGHT, .alt)
     static let copyURL = CEFKeyEvent.key("C", [.control, .shift])
@@ -62,49 +65,89 @@ enum CommandCatalog {
     private static let entries: [Entry] = [
         shortcut([Shortcut.newTab]) { $0.showCommandBar(mode: .newTab) },
         shortcut([Shortcut.commandBar]) { $0.openCommandBar() },
-        shortcut([Shortcut.closeTab]) { $0.closeSelectedTab() },
-        shortcut([Shortcut.reload, .key(VK_F5)]) { $0.selectedTab?.reload() },
         shortcut([Shortcut.back]) { $0.selectedTab?.goBack() },
         shortcut([Shortcut.forward]) { $0.selectedTab?.goForward() },
-        shortcut([Shortcut.nextTab]) { $0.selectTab(offset: 1) },
-        shortcut([Shortcut.previousTab]) { $0.selectTab(offset: -1) },
-        shortcut([Shortcut.zoomIn]) { $0.selectedTab?.zoomIn() },
-        shortcut([Shortcut.zoomOut]) { $0.selectedTab?.zoomOut() },
-        shortcut([Shortcut.actualSize]) { $0.selectedTab?.resetZoom() },
-        entry("copy-url", "Copy URL", ["link", "share"], "link", [Shortcut.copyURL]) { $0.copyURL() },
-        entry("pin", "Pin/Unpin Tab", ["favorite"], "pin", [Shortcut.pinTab]) { $0.togglePinTab() },
-        entry("split", "Add Split View", ["side by side", "pane"], "rectangle.split.2x1", [Shortcut.newSplitView]) {
-            $0.addSplitView()
-        },
-        entry("toggle-sidebar", "Toggle Sidebar", ["hide", "show"], "sidebar.left", [Shortcut.toggleSidebar]) {
-            $0.toggleSidebar()
-        },
-        entry("new-space", "New Space", ["create", "theme"], "plus.square.on.square", []) { $0.newSpace() },
-        entry("edit-theme", "Edit Theme Color", ["color", "space"], "paintpalette", []) {
-            $0.editTheme(of: $0.state.selectedSpaceID)
-        },
-        entry("next-space", "Next Space", [], "arrow.right.square", [Shortcut.nextSpace]) { $0.selectSpace(offset: 1) },
-        entry("previous-space", "Previous Space", [], "arrow.left.square", [Shortcut.previousSpace]) {
-            $0.selectSpace(offset: -1)
-        },
-        entry("new-folder", "New Folder", ["group"], "folder.badge.plus", []) { $0.newFolder() },
-        entry("translate", "Translate Page", ["language"], "character.bubble", []) { $0.translatePage() },
-        entry("clear-unpinned", "Clear Today Tabs", ["close", "archive", "unpinned"], "xmark.circle",
-              [Shortcut.clearToday]) { $0.clearToday() },
+        shortcut([Shortcut.newWindow]) { _ in ArrowApp.openWindow() },
+        shortcut([Shortcut.newIncognitoWindow]) { _ in ArrowApp.openWindow(incognito: true) },
+        shortcut([Shortcut.find]) { $0.showFindBar() },
+        // Arc's commands on Windows: its menus' and its tab's actions.
+        entry("close", "Close", ["window"], "xmark", [Shortcut.close]) { $0.close() },
+        entry("close-tab", "Close Current Tab", [], "xmark", [Shortcut.closeTab]) { $0.closeSelectedTab() },
         entry("reopen", "Reopen Last Closed Tab", ["undo", "restore"], "arrow.uturn.backward", [Shortcut.reopenTab]) {
             $0.reopenLastClosedTab()
         },
-        entry("archive", "View Archive", ["history", "closed"], "archivebox", []) { $0.showArchive() },
-        entry("find", "Find in Page", ["search"], "magnifyingglass", [Shortcut.find]) { $0.showFindBar() },
-        entry("devtools", "Developer Tools", ["inspect", "console", "debug"], "hammer",
-              [Shortcut.developerTools, .key(VK_F12)]) { $0.showDeveloperTools() },
-        entry("view-source", "View Source", ["html"], "doc.plaintext", [Shortcut.viewSource]) { $0.viewSource() },
-        entry("print", "Print", [], "printer", [Shortcut.print]) { $0.printPage() },
-        entry("new-window", "New Window", [], "macwindow", [Shortcut.newWindow]) { _ in ArrowApp.openWindow() },
-        entry("incognito", "New Incognito Window", ["private"], "theatermasks", [Shortcut.newIncognitoWindow]) { _ in
-            ArrowApp.openWindow(incognito: true)
+        entry("reload", "Reload Current Tab", ["refresh current tab"], "arrow.clockwise", [Shortcut.reload, .key(VK_F5)]) {
+            $0.selectedTab?.reload()
         },
+        entry("force-reload", "Force Reload Current Tab", ["force refresh current tab", "clear cache"],
+              "arrow.clockwise", [Shortcut.forceReload, .key(VK_F5, .control)]) { $0.selectedTab?.engine?.reloadIgnoringCache() },
+        entry("clear-archive", "Clear Archive", [], "archivebox", []) { window in
+            window.store.update { $0.archive = [] }
+        },
+        entry("clear-unpinned", "Clear Today Tabs", ["unpinned"], "xmark.circle", [Shortcut.clearToday]) {
+            $0.clearToday()
+        },
+        entry("console", "JavaScript Console", ["developer"], "hammer", []) { $0.showDeveloperTools(panel: "console") },
+        entry("build-info", "Copy Build Info", ["version"], "gearshape", []) { $0.copyBuildInfo() },
+        entry("duplicate", "Duplicate Current Tab", ["copy tab"], "plus.square.on.square", []) { window in
+            guard let tabID = window.state.selectedTabID else { return }
+            window.duplicateTab(tabID)
+        },
+        entry("copy-url", "Copy Current URL", ["link", "share"], "gearshape", [Shortcut.copyURL]) { $0.copyURL() },
+        entry("default-browser", "Set Arrow as Default Browser", [], "heart", []) { $0.openDefaultBrowserSettings() },
+        entry("devtools", "Developer", ["tools", "debug"], "hammer", [Shortcut.developerTools, .key(VK_F12)]) {
+            $0.showDeveloperTools()
+        },
+        entry("add-extension", "Add Extension", ["chrome web store"], "puzzlepiece", []) { $0.addExtension() },
+        entry("manage-extensions", "Manage Extensions", [], "puzzlepiece", []) { _ in
+            SettingsWindow.show(section: .extensions)
+        },
+        entry("fullscreen", "Enter Fullscreen", [], "arrow.up.left.and.arrow.down.right", [Shortcut.fullscreen]) {
+            $0.toggleFullscreen()
+        },
+        entry("import", "Import from Another Browser", ["bookmarks"], "square.and.arrow.down", []) {
+            $0.importFromBrowser()
+        },
+        entry("inspect", "Inspect Elements", [], "hammer", []) { $0.inspectElements() },
+        entry("network", "Network Inspector", [], "hammer", []) { $0.showDeveloperTools(panel: "network") },
+        entry("next-tab", "Next Tab", [], "arrow.right", [Shortcut.nextTab]) { $0.selectTab(offset: 1) },
+        entry("next-space", "Next Space", [], "arrow.right.square", [Shortcut.nextSpace]) { $0.selectSpace(offset: 1) },
+        entry("pin", "Pin Tab", ["unpin"], "pin", [Shortcut.pinTab]) { $0.togglePinTab() },
+        entry("favorite", "Favorite Tab", ["pin"], "star", []) { window in
+            guard let tabID = window.state.selectedTabID else { return }
+            window.store.update { _ = $0.move(tabID, to: .favorites()) }
+        },
+        entry("previous-tab", "Previous Tab", [], "arrow.left", [Shortcut.previousTab]) { $0.selectTab(offset: -1) },
+        entry("previous-space", "Previous Space", [], "arrow.left.square", [Shortcut.previousSpace]) {
+            $0.selectSpace(offset: -1)
+        },
+        entry("print", "Print", [], "printer", [Shortcut.print]) { $0.printPage() },
+        entry("rename-space", "Rename Space", [], "pencil", []) { $0.rename($0.state.selectedSpaceID) },
+        entry("rename-tab", "Rename Current Tab…", [], "pencil", []) { window in
+            guard let tabID = window.state.selectedTabID else { return }
+            window.rename(tabID)
+        },
+        entry("reset-zoom", "Reset Zoom", [], "plus.magnifyingglass", [Shortcut.actualSize]) {
+            $0.selectedTab?.resetZoom()
+        },
+        entry("zoom-in", "Zoom In", [], "plus.magnifyingglass", [Shortcut.zoomIn]) { $0.selectedTab?.zoomIn() },
+        entry("zoom-out", "Zoom Out", [], "minus.magnifyingglass", [Shortcut.zoomOut]) { $0.selectedTab?.zoomOut() },
+        entry("reset-tabs", "Reset All Tabs in This Space", [], "arrow.counterclockwise", []) {
+            $0.resetAllTabsInSpace()
+        },
+        entry("expand-folders", "Expand All Folders", ["reveal"], "folder", []) { $0.expandAllFolders() },
+        entry("reveal", "Reveal Tab in Sidebar", ["sidebar"], "sidebar.left", []) { $0.revealSelectedTab() },
         entry("settings", "Settings", ["preferences"], "gearshape", [Shortcut.settings]) { _ in SettingsWindow.show() },
+        entry("toggle-sidebar", "Toggle Sidebar", ["hide", "show"], "sidebar.left", [Shortcut.toggleSidebar]) {
+            $0.toggleSidebar()
+        },
+        entry("split", "New Split View", ["side by side", "pane"], "rectangle.split.2x1", [Shortcut.newSplitView]) {
+            $0.addSplitView()
+        },
+        entry("updates", "Check for Updates…", ["update"], "arrow.down.circle", []) { $0.checkForUpdates() },
+        entry("view-source", "View Source", ["html"], "doc.plaintext", [Shortcut.viewSource]) { $0.viewSource() },
+        entry("archive", "View Archive", ["closed"], "archivebox", []) { $0.showArchive() },
+        entry("history", "View History", ["visited"], "clock", []) { $0.showHistory() },
     ] + (0..<9).map { index in
         shortcut([Shortcut.space(index)]) { $0.selectSpace(at: index) }
     } + (0..<9).map { index in
@@ -113,8 +156,9 @@ enum CommandCatalog {
 
     private static func entry(_ id: String, _ title: String, _ keywords: [String], _ symbol: String,
                               _ keys: [CEFKeyEvent], _ action: @escaping @MainActor (BrowserWindow) -> Void) -> Entry {
-        let command = CommandBarCommand(id: id, title: title, keywords: keywords, symbol: symbol,
-                                        shortcut: keys.first?.label)
+        // Arc's command bar writes them out: "Control+Shift+C".
+        let label = keys.first.map { $0.label.replacingOccurrences(of: "Ctrl+", with: "Control+") }
+        let command = CommandBarCommand(id: id, title: title, keywords: keywords, symbol: symbol, shortcut: label)
         return Entry(command: command, keys: keys, action: action)
     }
 
@@ -125,7 +169,16 @@ enum CommandCatalog {
 
     static var commands: [CommandBarCommand] { entries.compactMap(\.command) }
 
+    /// Arc's command to go to each space, by its name.
+    static func spaceCommands(_ spaces: [Space]) -> [CommandBarCommand] {
+        spaces.map { CommandBarCommand(id: "space-\($0.id.uuidString)", title: $0.title, symbol: "square.stack") }
+    }
+
     static func perform(_ id: String, in window: BrowserWindow) {
+        if id.hasPrefix("space-"), let spaceID = Foundation.UUID(uuidString: String(id.dropFirst("space-".count))) {
+            window.selectSpace(spaceID)
+            return
+        }
         entries.first { $0.command?.id == id }?.action(window)
     }
 

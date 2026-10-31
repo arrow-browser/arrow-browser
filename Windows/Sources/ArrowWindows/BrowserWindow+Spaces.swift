@@ -187,38 +187,24 @@ extension BrowserWindow {
 
     // MARK: - Folders
 
-    /// Arc's Live Folders ▸ GitHub: a pinned folder of a user's or a
-    /// repository's open pull requests or issues.
-    func newLiveFolder() {
-        let query = TextBox()
-        query.header = "GitHub user or repository"
-        query.placeholderText = "octocat or apple/swift"
-        var kind = LiveFolders.Source.Kind.pullRequests
-        let kinds = StackPanel()
-        kinds.orientation = .horizontal
-        kinds.spacing = 16
-        for (title, value) in [("Pull Requests", LiveFolders.Source.Kind.pullRequests), ("Issues", .issues)] {
-            let radio = RadioButton()
-            radio.content = title
-            radio.groupName = "liveFolderKind"
-            radio.isChecked = value == kind
-            radio.checked.addHandler { _, _ in kind = value }
-            kinds.children.append(radio)
-        }
-        let content = StackPanel()
-        content.spacing = 12
-        content.children.append(query)
-        content.children.append(kinds)
-        let spaceID = state.selectedSpaceID
-        Sheet(window: self, title: "New GitHub Live Folder", content: content, actions: [
-            Sheet.Action(title: "Create Folder", isPrimary: true) {
-                let text = query.text.trimmingCharacters(in: .whitespaces)
-                guard !text.isEmpty else { return false }
-                _ = LiveFolders.shared.add(LiveFolders.Source(query: text, kind: kind), in: spaceID)
+    /// Arc's Live Folders ▸ GitHub: the space's GitHub Live Folder, pinned,
+    /// filled with the pull requests of the user signed in to GitHub.
+    func addGitHubLiveFolder() {
+        LiveFolders.shared.addGitHub(in: state.selectedSpaceID)
+    }
+
+    /// Delete Live Folder, confirmed as Arc does.
+    func deleteLiveFolder(_ folder: ArrowKit.Folder) {
+        let text = TextBlock()
+        text.text = "You can restore this folder at any time by right-clicking the sidebar."
+        text.textWrapping = .wrap
+        Sheet(window: self, title: "Delete your \(folder.title) Live Folder?", content: text, actions: [
+            Sheet.Action(title: "Delete", isPrimary: true) {
+                LiveFolders.shared.delete(folder.id)
                 return true
             },
             Sheet.Action(title: "Cancel"),
-        ]).show(focusing: query)
+        ]).show()
     }
 
     /// A new profile, used by `spaceID` (Set Profile ▸ New Profile…).

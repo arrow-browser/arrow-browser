@@ -212,6 +212,7 @@ final class Sidebar {
             for (childIndex, child) in folder.children.enumerated() {
                 appendRows(for: child, section: section, depth: depth + 1, folderID: folder.id, index: childIndex)
             }
+            if let note = liveFolderNote(folder, depth: depth + 1) { list.children.append(note) }
         case let .split(split):
             guard let first = split.tabs.first else { return }
             let isSelected = split.tabs.contains { $0.id == selectedID }
@@ -230,6 +231,35 @@ final class Sidebar {
             makeDropTarget(row) { before }
             list.children.append(row)
         }
+    }
+
+    /// Arc's line in a live folder that cannot show pull requests: signed
+    /// out of GitHub, GitHub unreachable (both open GitHub), or none yet.
+    private func liveFolderNote(_ folder: ArrowKit.Folder, depth: Int) -> UIElement? {
+        let liveFolders = LiveFolders.shared
+        guard liveFolders.isLive(folder.id) else { return nil }
+        let note: (text: String, url: String?)
+        switch liveFolders.status[folder.id] {
+        case .signedOut:
+            note = (LiveFolders.signInText, LiveFolders.signInURL)
+        case .unreachable where folder.children.isEmpty:
+            note = (LiveFolders.unreachableText, LiveFolders.pullsURL)
+        case nil where folder.children.isEmpty:
+            note = (LiveFolders.emptyText, nil)
+        default:
+            return nil
+        }
+        let text = TextBlock()
+        text.text = note.text
+        text.fontSize = 12
+        text.textWrapping = .wrap
+        text.margin = Thickness(left: 10 + Double(depth) * 16, top: 4, right: 10, bottom: 6)
+        text.foreground = note.url == nil ? brushes.subtitle : brushes.title
+        if let url = note.url {
+            text.textDecorations = .underline
+            text.tapped.addHandler { [weak self] _, _ in self?.window.openNewTab(url) }
+        }
+        return text
     }
 
     private func newTabRow() -> Button {
@@ -631,7 +661,8 @@ final class Sidebar {
 
     /// Arc's menu of a folder ("List Context Menu").
     private func folderMenu(for folder: ArrowKit.Folder) -> MenuFlyout {
-        Menu.flyout([
+        if LiveFolders.shared.isLive(folder.id) { return liveFolderMenu(for: folder) }
+        return Menu.flyout([
             Menu.title("List Context Menu"),
             Menu.item("New Nested Folder…") { [weak self] in self?.window.newFolder(in: folder.id) },
             Menu.item("Turn “\(folder.title)” into Space") { [weak self] in self?.window.turnIntoSpace(folder) },
@@ -667,13 +698,38 @@ final class Sidebar {
             Menu.separator(),
             Menu.item("New Folder") { [weak self] in self?.window.newFolder() },
             Menu.submenu("Live Folders", [
-                Menu.item("GitHub") { [weak self] in self?.window.newLiveFolder() },
+                Menu.item("GitHub") { [weak self] in self?.window.addGitHubLiveFolder() },
             ]),
             Menu.separator(),
             Menu.item("Delete Space", isEnabled: store.state.spaces.count > 1) { [weak self] in
                 self?.window.deleteSpace(space.id)
             },
         ])
+    }
+
+    /// Arc's menu of a live folder: the repositories of its pull requests,
+    /// each shown or hidden.
+    private func liveFolderMenu(for folder: ArrowKit.Folder) -> MenuFlyout {
+        let liveFolders = LiveFolders.shared
+        let repositories = liveFolders.repositories(of: folder.id)
+        let tabs = folder.children.allTabs
+        var entries: [Menu.Entry] = [Menu.title("Live Folder Context Menu")]
+        for repository in repositories {
+            entries.append(Menu.toggle(repository, isOn: liveFolders.isShown(repository, in: folder.id)) {
+                liveFolders.toggle(repository, in: folder.id)
+            })
+        }
+        if !repositories.isEmpty { entries.append(Menu.title(LiveFolders.repositoriesText)) }
+        entries += [
+            Menu.separator(),
+            Menu.item("Copy All Links as Markdown", isEnabled: !tabs.isEmpty) { [weak self] in
+                let links = tabs.map { "[\($0.displayTitle)](\($0.url))" }
+                self?.store.platform.copyToClipboard(links.joined(separator: "\n"))
+            },
+            Menu.separator(),
+            Menu.item("Delete Live Folder") { [weak self] in self?.window.deleteLiveFolder(folder) },
+        ]
+        return Menu.flyout(entries)
     }
 
     /// The spaces a tab or folder can move to.

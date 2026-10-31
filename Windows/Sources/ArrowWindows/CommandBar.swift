@@ -91,7 +91,7 @@ final class CommandBar {
         separator.height = 1
         separator.background = colors.stroke
         rows.spacing = 4
-        rows.padding = Thickness(left: 10, top: 6, right: 10, bottom: 6)
+        rows.padding = Thickness(left: 4, top: 4, right: 4, bottom: 4)
         scroller.content = rows
         scroller.maxHeight = 440
         panel.child = content
@@ -146,9 +146,11 @@ final class CommandBar {
         let keys: [(String, SolidColorBrush)] = [
             ("Background", colors.clear), ("BorderBrush", colors.clear), ("Foreground", colors.text),
             ("PlaceholderForeground", colors.secondary),
+            // Arc's field has no clear button.
+            ("ButtonForeground", colors.clear), ("ButtonBackground", colors.clear),
         ]
         for (key, brush) in keys {
-            for state in ["", "PointerOver", "Focused"] {
+            for state in ["", "PointerOver", "Focused", "Pressed"] {
                 _ = field.resources.insert("TextControl\(key)\(state)", brush)
             }
         }
@@ -233,12 +235,13 @@ final class CommandBar {
         label.verticalAlignment = .center
         let title = Run()
         title.text = item.title
-        title.fontWeight = FontWeight(weight: 500)
         title.foreground = foreground
         label.inlines.append(title)
-        if let subtitle = item.subtitle {
+        // Arc's searches show the query alone.
+        let isSearch = if case .search = item.kind { true } else { false }
+        if let subtitle = item.subtitle, !isSearch {
             let run = Run()
-            run.text = "  —  \(subtitle)"
+            run.text = " — \(subtitle)"
             run.foreground = isSelected ? colors.onAccentSecondary : colors.secondary
             label.inlines.append(run)
         }
@@ -250,12 +253,17 @@ final class CommandBar {
             actions.orientation = .horizontal
             actions.spacing = 8
             actions.verticalAlignment = .center
-            let text = TextBlock()
-            text.text = action
-            text.fontSize = 13
-            text.verticalAlignment = .center
-            text.foreground = isSelected ? colors.onAccent : colors.secondary
-            actions.children.append(text)
+            if case .command = item.kind {
+                // A command's shortcut, on a key cap.
+                actions.children.append(keyCap(action))
+            } else {
+                let text = TextBlock()
+                text.text = action
+                text.fontSize = 13
+                text.verticalAlignment = .center
+                text.foreground = isSelected ? colors.onAccent : colors.secondary
+                actions.children.append(text)
+            }
             if case .switchToTab = item.kind {
                 let arrow = Glyph.view(Glyph.forward, size: 11)
                 arrow.foreground = isSelected ? colors.onAccent : colors.secondary
@@ -405,7 +413,7 @@ final class CommandBar {
 
         init(_ palette: ThemePalette) {
             let primary: RGBColor = palette.isDark ? .white : .black
-            fill = SolidColorBrush(Color(palette.isDark ? RGBColor(hex: 0x292929) : RGBColor(hex: 0xF9F9F9)))
+            fill = SolidColorBrush(Color(palette.isDark ? RGBColor(hex: 0x292929) : RGBColor(hex: 0xFFFFFF)))
             text = SolidColorBrush(Color(primary.withAlpha(0.88)))
             secondary = SolidColorBrush(Color(primary.withAlpha(0.5)))
             stroke = SolidColorBrush(Color(primary.withAlpha(0.08)))

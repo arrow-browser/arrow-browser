@@ -60,8 +60,50 @@ extension BrowserWindow {
     }
 
     private func archiveRow(_ entry: ArchivedTab, open: @escaping () -> Void) -> Button {
+        pageRow(title: store.title(of: entry.tab), url: entry.tab.url, detail: Self.archiveDate(entry.archivedAt),
+                open: open)
+    }
+
+    /// View History: the pages visited, the latest first, searchable; a
+    /// click opens one in a new tab.
+    func showHistory() {
+        let field = TextBox()
+        field.placeholderText = "Search History"
+        let rows = StackPanel()
+        rows.spacing = 2
+        let scroller = ScrollViewer()
+        scroller.height = 360
+        scroller.content = rows
+        let content = StackPanel()
+        content.spacing = 10
+        content.children.append(field)
+        content.children.append(scroller)
+        let sheet = Sheet(window: self, title: "History", content: content, width: 520, actions: [Sheet.Action(title: "Close")])
+        let history = store.history
+        let fill = { [weak self, weak sheet] in
+            guard let self else { return }
+            rows.children.clear()
+            let query = field.text.trimmingCharacters(in: .whitespaces)
+            let entries = query.isEmpty
+                ? history.entries.values.sorted { $0.lastVisit > $1.lastVisit }.prefix(100).map { $0 }
+                : history.search(query, limit: 100)
+            for entry in entries {
+                rows.children.append(pageRow(title: entry.title.isEmpty ? entry.url : entry.title, url: entry.url,
+                                             detail: Self.archiveDate(entry.lastVisit)) { [weak self] in
+                    sheet?.close()
+                    self?.openNewTab(entry.url)
+                })
+            }
+        }
+        field.textChanged.addHandler { _, _ in fill() }
+        fill()
+        sheet.show(focusing: field)
+    }
+
+    /// A page in a list (archive, history): its favicon, title and a detail.
+    private func pageRow(title text: String, url: String, detail: String, open: @escaping () -> Void) -> Button {
         let icon: FrameworkElement
-        if let favicon = FaviconCache.shared.image(for: entry.tab.url) {
+        if let favicon = FaviconCache.shared.image(for: url) {
             let image = Image()
             image.source = favicon.bitmap
             image.width = 16
@@ -71,11 +113,11 @@ extension BrowserWindow {
             icon = Glyph.view(Glyph.globe)
         }
         let title = TextBlock()
-        title.text = store.title(of: entry.tab)
+        title.text = text
         title.fontSize = 13
         title.textTrimming = .characterEllipsis
         let when = TextBlock()
-        when.text = Self.archiveDate(entry.archivedAt)
+        when.text = detail
         when.fontSize = 11
         when.opacity = 0.6
         let content = Grid()
@@ -100,7 +142,7 @@ extension BrowserWindow {
         row.borderThickness = Thickness()
         row.cornerRadius = CornerRadius(6)
         try? AutomationProperties.setName(row, title.text)
-        try? ToolTipService.setToolTip(row, entry.tab.url)
+        try? ToolTipService.setToolTip(row, url)
         row.click.addHandler { _, _ in open() }
         return row
     }

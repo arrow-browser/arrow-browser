@@ -1,52 +1,66 @@
 import ArrowCore
 import ArrowKit
 import Foundation
-#if canImport(FoundationNetworking)
-import FoundationNetworking
-#endif
+import Observation
 
-/// Arc's Live Folders: pinned folders kept filled from GitHub (the open pull
-/// requests or issues of a user or a repository), refreshed every few
-/// minutes. Which folders are live is a setting of this app, in its
+/// Arc's GitHub Live Folder (a space's menu, Live Folders ▸ GitHub): a
+/// pinned folder kept filled with the open pull requests of the user signed
+/// in to GitHub in the space's profile, theirs and those awaiting their
+/// review. Like Arc, it reads them from github.com's pages, in a hidden page
+/// of the profile. Which folders are live is a setting of this app, in its
 /// defaults.
 @MainActor
+@Observable
 final class LiveFolders {
-    struct Source: Codable, Equatable {
-        enum Kind: String, Codable {
-            case pullRequests, issues
-        }
+    struct PullRequest: Equatable {
+        var title: String
+        var url: String
 
-        /// A user ("octocat") or a repository ("apple/swift").
-        var query: String
-        var kind: Kind
-
-        var title: String {
-            "\(query) \(kind == .pullRequests ? "Pull Requests" : "Issues")"
-        }
-
-        /// GitHub's search for the open items.
-        var searchURL: URL? {
-            var components = URLComponents(string: "https://api.github.com/search/issues")
-            let scope = query.contains("/") ? "repo:\(query)" : "involves:\(query)"
-            components?.queryItems = [
-                URLQueryItem(name: "q", value: "\(scope) is:open is:\(kind == .pullRequests ? "pr" : "issue")"),
-                URLQueryItem(name: "sort", value: "updated"),
-                URLQueryItem(name: "per_page", value: "30"),
-            ]
-            return components?.url
+        /// "owner/repo".
+        var repository: String {
+            URL(string: url)?.pathComponents.dropFirst().prefix(2).joined(separator: "/") ?? ""
         }
     }
 
+    /// Why a folder's last refresh left it as it was.
+    enum Status {
+        case signedOut, unreachable
+    }
+
+    private struct Stored: Codable {
+        /// Repositories unchecked in the folder's menu.
+        var hiddenRepositories: [String] = []
+    }
+
+    private enum Page {
+        case pullRequests([PullRequest])
+        case signedOut
+    }
+
     static let shared = LiveFolders()
-    private static let key = "LiveFolders"
+    static let title = "GitHub"
+    // Arc's words.
+    static let emptyText = "Pull requests from you and your team will show up here automatically"
+    static let signInText = "Sign back in to GitHub."
+    static let unreachableText = "We’re having trouble connecting to GitHub; click here to see your Pull Requests."
+    static let repositoriesText = "This list is generated based on your currently active pull requests."
+    static let pullsURL = "https://github.com/pulls"
+    static let signInURL = "https://github.com/login?return_to=%2Fpulls"
+    /// The user's open pull requests, then those awaiting their review.
+    private static let pages = [pullsURL, "https://github.com/pulls/review-requested"]
+    private static let key = "GitHubLiveFolders"
     private static let refreshInterval: TimeInterval = 10 * 60
 
-    private weak var store: BrowserStore?
-    private var timer: Timer?
-    private var sources: [Foundation.UUID: Source] = LiveFolders.load()
+    @ObservationIgnored private weak var store: BrowserStore?
+    @ObservationIgnored private var timer: Timer?
+    @ObservationIgnored private var refreshing: Set<Foundation.UUID> = []
+    @ObservationIgnored private var folders: [Foundation.UUID: Stored] = LiveFolders.load()
+    /// Each folder's pull requests, before hiding repositories.
+    @ObservationIgnored private var pullRequests: [Foundation.UUID: [PullRequest]] = [:]
+    private(set) var status: [Foundation.UUID: Status] = [:]
 
     func isLive(_ folderID: Foundation.UUID) -> Bool {
-        sources[folderID] != nil
+        folders[folderID] != nil
     }
 
     /// Refreshes the live folders now, then every few minutes.
@@ -58,74 +72,167 @@ final class LiveFolders {
         }
     }
 
-    /// A new live folder pinned in `spaceID`, filled at once.
-    func add(_ source: Source, in spaceID: Foundation.UUID) -> ArrowKit.Folder? {
-        guard let store else { return nil }
+    /// The space's GitHub Live Folder, pinned and filled; shown again when
+    /// the space has one.
+    func addGitHub(in spaceID: Foundation.UUID) {
+        guard let store, let space = store.state.space(spaceID) else { return }
+        if let existing = Self.folderIDs(in: space.pinned).first(where: isLive) {
+            store.update { browser in
+                for index in browser.spaces.indices {
+                    browser.spaces[index].pinned.updateFolder(existing) { $0.isExpanded = true }
+                }
+            }
+            refresh(existing)
+            return
+        }
         var folder: ArrowKit.Folder?
-        store.update { folder = $0.createFolder(in: spaceID, title: source.title) }
-        guard let folder else { return nil }
-        sources[folder.id] = source
+        store.update { folder = $0.createFolder(in: spaceID, title: Self.title) }
+        guard let folder else { return }
+        folders[folder.id] = Stored()
         save()
         refresh(folder.id)
-        return folder
     }
 
-    private func refreshAll() {
+    func delete(_ folderID: Foundation.UUID) {
+        folders[folderID] = nil
+        pullRequests[folderID] = nil
+        status[folderID] = nil
+        save()
+        store?.update { _ = $0.delete(folderID) }
+    }
+
+    /// The repositories of the folder's pull requests, its menu's list.
+    func repositories(of folderID: Foundation.UUID) -> [String] {
+        var seen = Set<String>()
+        return (pullRequests[folderID] ?? []).map(\.repository).filter { seen.insert($0).inserted }
+    }
+
+    func isShown(_ repository: String, in folderID: Foundation.UUID) -> Bool {
+        folders[folderID]?.hiddenRepositories.contains(repository) == false
+    }
+
+    /// Shows or hides a repository's pull requests in the folder.
+    func toggle(_ repository: String, in folderID: Foundation.UUID) {
+        guard var stored = folders[folderID] else { return }
+        if let index = stored.hiddenRepositories.firstIndex(of: repository) {
+            stored.hiddenRepositories.remove(at: index)
+        } else {
+            stored.hiddenRepositories.append(repository)
+        }
+        folders[folderID] = stored
+        save()
+        if let found = pullRequests[folderID] { fill(folderID, with: found) }
+    }
+
+    func refreshAll() {
         guard let store else { return }
         // Folders deleted meanwhile stop being live.
         let existing = Set(store.state.spaces.flatMap { Self.folderIDs(in: $0.pinned) })
-        let gone = sources.keys.filter { !existing.contains($0) }
+        let gone = folders.keys.filter { !existing.contains($0) }
         if !gone.isEmpty {
-            for id in gone { sources[id] = nil }
+            for id in gone { folders[id] = nil }
             save()
         }
-        for id in sources.keys {
+        for id in folders.keys {
             refresh(id)
         }
     }
 
     private func refresh(_ folderID: Foundation.UUID) {
-        guard let source = sources[folderID], let url = source.searchURL else { return }
-        var request = URLRequest(url: url)
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        request.setValue("Arrow", forHTTPHeaderField: "User-Agent")
+        guard let store, !refreshing.contains(folderID),
+              let space = store.state.spaces.first(where: { Self.folderIDs(in: $0.pinned).contains(folderID) })
+        else { return }
+        let context = store.requestContext(for: space.profileID)
+        refreshing.insert(folderID)
         Task {
-            guard let (data, _) = try? await URLSession.shared.data(for: request) else { return }
-            let items = Self.items(data)
-            guard !items.isEmpty || Self.isEmptyResult(data) else { return }
-            fill(folderID, with: items)
+            defer { refreshing.remove(folderID) }
+            var found: [PullRequest] = []
+            for page in Self.pages {
+                switch await Self.read(page, in: context) {
+                case let .pullRequests(more):
+                    found += more.filter { request in !found.contains { $0.url == request.url } }
+                case .signedOut:
+                    status[folderID] = .signedOut
+                    return
+                case nil:
+                    status[folderID] = .unreachable
+                    return
+                }
+            }
+            status[folderID] = nil
+            pullRequests[folderID] = found
+            fill(folderID, with: found)
         }
     }
 
-    /// Replaces the folder's tabs with `items`, keeping the tabs of the
-    /// addresses it already has (and their pages).
-    private func fill(_ folderID: Foundation.UUID, with items: [(title: String, url: String)]) {
+    /// Replaces the folder's tabs with the pull requests of the repositories
+    /// it shows, keeping the tabs of the pages it already has.
+    private func fill(_ folderID: Foundation.UUID, with found: [PullRequest]) {
         guard let store else { return }
+        let shown = found.filter { isShown($0.repository, in: folderID) }
         store.update { browser in
             for index in browser.spaces.indices {
                 browser.spaces[index].pinned = Self.replacing(browser.spaces[index].pinned, folder: folderID) { old in
                     let existing = Dictionary(old.allTabs.map { ($0.url, $0) }, uniquingKeysWith: { first, _ in first })
-                    return items.map { item in
-                        .tab(existing[item.url] ?? Tab(url: item.url, title: item.title, pinnedURL: item.url))
+                    return shown.map { request in
+                        .tab(existing[request.url] ?? Tab(url: request.url, title: request.title, pinnedURL: request.url))
                     }
                 }
             }
         }
     }
 
-    /// GitHub's search results: each item's title and page.
-    static func items(_ data: Data) -> [(title: String, url: String)] {
-        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let items = root["items"] as? [[String: Any]] else { return [] }
-        return items.compactMap { item in
-            guard let title = item["title"] as? String, let url = item["html_url"] as? String else { return nil }
-            return (title, url)
+    /// Reads the pull requests of a github.com page in a hidden page of
+    /// `context`; nil when it could not.
+    private static func read(_ url: String, in context: any BrowsingContext) async -> Page? {
+        let page = context.makeBrowser()
+        page.create(url: url)
+        defer { page.close(force: true) }
+        var last: [PullRequest]?
+        var emptyReads = 0
+        for _ in 0..<40 {
+            try? await Task.sleep(for: .milliseconds(500))
+            guard let result = await page.evaluateJavaScript(scrapeScript) as? [String: Any] else { continue }
+            if result["signedOut"] as? Bool == true { return .signedOut }
+            let found = pullRequests(result)
+            // github.com may draw its list once loaded: the list is complete
+            // when read twice the same, or empty when it stays empty.
+            if found.isEmpty {
+                emptyReads += 1
+                if emptyReads == 6 { return .pullRequests([]) }
+                continue
+            }
+            if found == last { return .pullRequests(found) }
+            last = found
+        }
+        return last.map { .pullRequests($0) }
+    }
+
+    /// The pull requests `scrapeScript` found.
+    static func pullRequests(_ result: [String: Any]) -> [PullRequest] {
+        (result["items"] as? [Any] ?? []).compactMap { item in
+            guard let pair = item as? [Any], pair.count == 2, let url = pair[0] as? String,
+                  let title = pair[1] as? String else { return nil }
+            return PullRequest(title: title, url: url)
         }
     }
 
-    private static func isEmptyResult(_ data: Data) -> Bool {
-        ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any])?["total_count"] as? Int == 0
-    }
+    /// The page's links to pull requests, each with its longest title; null
+    /// until loaded, `signedOut` on GitHub's sign-in page.
+    static let scrapeScript = """
+    (() => {
+      if (document.readyState !== 'complete') return null;
+      if (/^\\/(login|session)/.test(location.pathname)) return { signedOut: true };
+      const titles = new Map();
+      for (const link of document.querySelectorAll('a[href*="/pull/"]')) {
+        const url = link.href.split(/[?#]/)[0];
+        const title = link.textContent.trim().replace(/\\s+/g, ' ');
+        if (!/^https:\\/\\/github\\.com\\/[^/]+\\/[^/]+\\/pull\\/\\d+$/.test(url) || !title || /^#?\\d+$/.test(title)) continue;
+        if ((titles.get(url) || '').length < title.length) titles.set(url, title);
+      }
+      return { items: [...titles] };
+    })()
+    """
 
     private static func replacing(_ nodes: [SidebarNode], folder id: Foundation.UUID,
                                   _ children: ([SidebarNode]) -> [SidebarNode]) -> [SidebarNode] {
@@ -143,16 +250,16 @@ final class LiveFolders {
         }
     }
 
-    private static func load() -> [Foundation.UUID: Source] {
+    private static func load() -> [Foundation.UUID: Stored] {
         guard let data = UserDefaults.standard.data(forKey: key),
-              let stored = try? JSONDecoder().decode([String: Source].self, from: data) else { return [:] }
+              let stored = try? JSONDecoder().decode([String: Stored].self, from: data) else { return [:] }
         return Dictionary(uniqueKeysWithValues: stored.compactMap { key, value in
             Foundation.UUID(uuidString: key).map { ($0, value) }
         })
     }
 
     private func save() {
-        let stored = Dictionary(uniqueKeysWithValues: sources.map { ($0.key.uuidString, $0.value) })
+        let stored = Dictionary(uniqueKeysWithValues: folders.map { ($0.key.uuidString, $0.value) })
         UserDefaults.standard.set(try? JSONEncoder().encode(stored), forKey: Self.key)
         UserDefaults.standard.synchronize()
     }

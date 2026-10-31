@@ -213,6 +213,29 @@ enum Glyph {
         case "arrow.right.square": forward
         case "xmark.circle": close
         case "arrow.uturn.backward": undo
+        // Arc's commands.
+        case "gearshape": settings
+        case "xmark": close
+        case "arrow.clockwise": reload
+        case "archivebox": archive
+        case "hammer", "doc.plaintext": developer
+        case "plus.square.on.square": "\u{E8C8}"
+        case "heart": heart
+        case "puzzlepiece": extensions
+        case "arrow.up.left.and.arrow.down.right": "\u{E740}"
+        case "square.and.arrow.down": importItems
+        case "arrow.right": forward
+        case "arrow.left": back
+        case "star": "\u{E734}"
+        case "printer": print
+        case "pencil": "\u{E70F}"
+        case "plus.magnifyingglass": "\u{E8A3}"
+        case "minus.magnifyingglass": "\u{E71F}"
+        case "arrow.counterclockwise": undo
+        case "folder": folder
+        case "rectangle.split.2x1": splitView
+        case "arrow.down.circle": update
+        case "square.stack": spaces
         default: globe
         }
     }

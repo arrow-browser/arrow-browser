@@ -99,6 +99,24 @@ extension BrowserWindow {
         state.renamingNodeID = folder?.id
     }
 
+    /// Expand All Folders of the space.
+    func expandAllFolders() {
+        let spaceID = state.selectedSpaceID
+        store.update { browser in
+            guard let index = browser.spaces.firstIndex(where: { $0.id == spaceID }) else { return }
+            browser.spaces[index].pinned = Self.expanding(browser.spaces[index].pinned)
+        }
+    }
+
+    private static func expanding(_ nodes: [SidebarNode]) -> [SidebarNode] {
+        nodes.map { node in
+            guard case var .folder(folder) = node else { return node }
+            folder.isExpanded = true
+            folder.children = expanding(folder.children)
+            return .folder(folder)
+        }
+    }
+
     func rename(_ nodeID: Foundation.UUID) {
         if !state.isSidebarVisible { toggleSidebar() }
         state.renamingNodeID = nodeID
