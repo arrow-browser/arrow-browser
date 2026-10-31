@@ -11,8 +11,9 @@ import WinUI
 /// A browser window, laid out as Arc's: the toolbar in the title bar
 /// (sidebar toggle, navigation, the address in the middle), the sidebar,
 /// and the selected tab's browser in a rounded panel, over the space's
-/// gradient. Browsers are child windows of the WinUI window's, the shown one
-/// kept over the area the layout leaves it.
+/// gradient, with the command bar over them. Browsers are child windows of
+/// the WinUI window's, the shown one kept over the area the layout leaves
+/// it.
 @MainActor
 final class BrowserWindow {
     let store: BrowserStore
@@ -40,8 +41,8 @@ final class BrowserWindow {
     /// The address in short form (the host), which edits the address.
     private let addressButton = Button()
     private let addressText = TextBlock()
-    private let addressField = TextBox()
     private var sidebar: Sidebar!
+    private var commandBar: CommandBar?
     private let sidebarColumn = ColumnDefinition()
     /// Where the shown browser goes in the layout.
     private let browserArea = Border()
@@ -49,10 +50,6 @@ final class BrowserWindow {
     /// Where the toolbar takes clicks in the title bar, in pixels.
     private var nonClientInput: InputNonClientPointerSource?
     private var passthroughRects: [RectInt32] = []
-    /// Enter in the address field opens a new tab ("New Tab"), instead of
-    /// loading the selected one.
-    private var opensNewTab = false
-    private var isEditingAddress = false
     private var isFullscreen = false
     private var isClosing = false
     private var canClose = false
@@ -145,6 +142,12 @@ final class BrowserWindow {
         return tab
     }
 
+    func selectSpace(offset: Int) {
+        let spaces = store.state.spaces
+        guard let index = spaces.firstIndex(where: { $0.id == state.selectedSpaceID }) else { return }
+        selectSpace(spaces[(index + offset + spaces.count) % spaces.count].id)
+    }
+
     func closeTab(_ tabID: Foundation.UUID) {
         let wasSelected = state.selectedTabID == tabID
         let neighbours = sidebarTabIDs
@@ -174,10 +177,33 @@ final class BrowserWindow {
         return (store.state.favorites(for: space.profileID) + space.pinned.allTabs + space.today.allTabs).map(\.id)
     }
 
-    /// Edits the address in the toolbar, for a new tab (New Tab) or the
-    /// selected one.
+    func closeSelectedTab() {
+        guard let tabID = state.selectedTabID else { return }
+        closeTab(tabID)
+    }
+
+    func reopenLastClosedTab() {
+        var restored: (tab: Tab, spaceID: Foundation.UUID)?
+        store.update { restored = $0.reopenLastArchived() }
+        guard let restored else { return }
+        select(restored.tab.id)
+    }
+
+    /// Opens the command bar for a new tab (New Tab).
     func startNewTab() {
-        editAddress(newTab: true)
+        showCommandBar(mode: .newTab)
+    }
+
+    func copyURL() {
+        guard let url = selectedTab?.url, !url.isEmpty else { return }
+        store.platform.copyToClipboard(url)
+        store.playSound(.event)
+    }
+
+    func togglePinTab() {
+        guard let tabID = state.selectedTabID else { return }
+        store.update { $0.togglePin(tabID) }
+        store.playSound(.event)
     }
 
     /// Archives the space's today tabs (Arc's "Clear").
@@ -257,19 +283,12 @@ final class BrowserWindow {
         addressButton.padding = Thickness(left: 8, top: 0, right: 8, bottom: 0)
         addressButton.cornerRadius = CornerRadius(6)
         try AutomationProperties.setName(addressButton, "Address")
-        addressField.placeholderText = "Search or Enter URL..."
-        addressField.fontSize = 13
-        addressField.width = 480
-        addressField.minHeight = 0
-        addressField.height = 28
-        addressField.padding = Thickness(left: 10, top: 4, right: 6, bottom: 4)
-        addressField.visibility = .collapsed
         let address = StackPanel()
         address.orientation = .horizontal
         address.spacing = 2
         address.horizontalAlignment = .center
         address.verticalAlignment = .center
-        for element: UIElement in [copyLinkButton, addressButton, addressField] {
+        for element: UIElement in [copyLinkButton, addressButton] {
             address.children.append(element)
         }
         try Grid.setColumnSpan(address, 4)
@@ -328,7 +347,7 @@ final class BrowserWindow {
             captionColumn.width = GridLength(value: inset, gridUnitType: .pixel)
         }
         let controls: [FrameworkElement] = [sidebarButton, backButton, forwardButton, reloadButton, copyLinkButton,
-                                            addressButton, addressField]
+                                            addressButton]
         let rects = isFullscreen ? [] : controls.compactMap { control -> RectInt32? in
             guard control.visibility == .visible, control.actualWidth > 0,
                   let origin = try? control.transformToVisual(nil).transformPoint(Point(x: 0, y: 0)) else { return nil }
@@ -354,22 +373,39 @@ final class BrowserWindow {
         addressText.foreground = address.isEmpty ? brushes.subtitle : brushes.title
         addressButton.background = address.isEmpty ? brushes.controlFill : brushes.clear
         copyLinkButton.isEnabled = !url.isEmpty
-        if !isEditingAddress { addressField.text = url }
         show(tab?.engine as? CEFBrowser)
     }
 
     /// Puts `browser` in the window, in place of the shown one.
     private func show(_ browser: CEFBrowser?) {
         guard browser !== shownBrowser else { return }
+        // The page with the keyboard hands it to the next one (a shortcut
+        // switched tabs, or closed the page): parked or closed, it would
+        // leave the window without it.
+        let focus = GetFocus()
+        let hadKeyboard = focus == nil ? GetActiveWindow() == handle
+            : shownBrowser.map { IsChild($0.hostWindow.handle, focus) } ?? false
+        if hadKeyboard { SetFocus(handle) }
         shownBrowser?.hostWindow.detach()
         shownBrowser = browser
         // The panel's own fill would fringe the browser's clipped corners.
         browserArea.background = browser == nil ? brushes.content : brushes.clear
         guard let browser else { return }
+        browser.keyDownHandler = { [weak self] key in
+            guard CommandCatalog.handles(key) else { return false }
+            // Not from within the browser's key event: the command can close
+            // the browser, or take the keyboard from it.
+            DispatchQueue.main.async {
+                guard let self else { return }
+                _ = CommandCatalog.handle(key, in: self)
+            }
+            return true
+        }
         browser.hostWindow.attach(to: handle, frame: browserFrame)
         layoutBrowser()
         // Over WinUI's own child window, which draws the rest of the window.
         SetWindowPos(browser.hostWindow.handle, nil, 0, 0, 0, 0, UINT(SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE))
+        if hadKeyboard { focusBrowser() }
     }
 
     /// Fits the shown browser to `browserArea`, with its rounded corners.
@@ -396,31 +432,17 @@ final class BrowserWindow {
         backButton.click.addHandler { [weak self] _, _ in self?.selectedTab?.goBack() }
         forwardButton.click.addHandler { [weak self] _, _ in self?.selectedTab?.goForward() }
         reloadButton.click.addHandler { [weak self] _, _ in self?.selectedTab?.reload() }
-        copyLinkButton.click.addHandler { [weak self] _, _ in
-            guard let self, let url = selectedTab?.url, !url.isEmpty else { return }
-            store.platform.copyToClipboard(url)
-        }
-        addressButton.click.addHandler { [weak self] _, _ in self?.editAddress(newTab: false) }
-        addressField.lostFocus.addHandler { [weak self] _, _ in self?.endEditingAddress() }
-        addressField.keyDown.addHandler { [weak self] _, event in
+        copyLinkButton.click.addHandler { [weak self] _, _ in self?.copyURL() }
+        addressButton.click.addHandler { [weak self] _, _ in self?.openCommandBar() }
+        // Keys the window's controls leave: the page's browser reports its
+        // own.
+        root.keyDown.addHandler { [weak self] _, event in
             guard let self, let event else { return }
-            switch event.key {
-            case .enter:
-                event.handled = true
-                let address = URLInput.resolve(addressField.text, engine: store.settings.searchEngine)
-                if opensNewTab || selectedTab == nil {
-                    openNewTab(address)
-                } else {
-                    selectedTab?.load(address)
-                }
-                opensNewTab = false
-                focusBrowser()
-            case .escape:
-                event.handled = true
-                focusBrowser()
-            default:
-                break
-            }
+            event.handled = CommandCatalog.handle(.held(event.key.rawValue), in: self)
+        }
+        root.sizeChanged.addHandler { [weak self] _, _ in
+            guard let self else { return }
+            commandBar?.place(in: root)
         }
         browserArea.sizeChanged.addHandler { [weak self] _, _ in self?.layoutBrowser() }
         toolbar.layoutUpdated.addHandler { [weak self] _, _ in self?.updateTitleBar() }
@@ -443,29 +465,98 @@ final class BrowserWindow {
         }
     }
 
-    /// Shows the address field in place of the short address, with the
-    /// selected tab's address, or empty for a new tab.
-    private func editAddress(newTab: Bool) {
-        opensNewTab = newTab
-        isEditingAddress = true
-        addressField.text = newTab ? "" : (selectedTab?.url ?? "")
-        addressButton.visibility = .collapsed
-        addressField.visibility = .visible
-        _ = try? addressField.focus(.programmatic)
-        try? addressField.selectAll()
+    // MARK: - Command bar
+
+    /// Opens the command bar, in place of an open one.
+    func showCommandBar(mode: CommandBarModel.Mode, placement: CommandBar.Placement = .center, text: String = "") {
+        commandBar?.close()
+        let store = store
+        let sources = CommandBarModel.Sources(
+            openTabs: {
+                store.state.spaces.flatMap { space in
+                    space.allTabs.map { CommandBarTab(tab: $0, spaceTitle: store.state.spaces.count > 1 ? space.title : nil) }
+                } + store.state.favorites.values.flatMap { $0.map { CommandBarTab(tab: $0, spaceTitle: nil) } }
+            },
+            history: { store.history },
+            commands: CommandCatalog.commands,
+            engine: { store.settings.searchEngine },
+            settings: { store.settings },
+            currentTabID: state.selectedTabID
+        )
+        let model = CommandBarModel(mode: mode, anchor: .center, initialText: text, sources: sources)
+        let bar = CommandBar(model: model, placement: placement, window: self)
+        bar.onClose = { [weak self, weak bar] in
+            guard let self, commandBar === bar else { return }
+            commandBar = nil
+        }
+        commandBar = bar
+        bar.open(over: root)
     }
 
-    private func endEditingAddress() {
-        isEditingAddress = false
-        opensNewTab = false
-        addressField.text = selectedTab?.url ?? ""
-        addressField.visibility = .collapsed
-        addressButton.visibility = .visible
+    /// Edits the selected tab's address in the command bar (Ctrl+L, a click
+    /// on the address), or opens a new tab without one.
+    func openCommandBar() {
+        guard let tab = selectedTab else {
+            showCommandBar(mode: .newTab, placement: .address)
+            return
+        }
+        showCommandBar(mode: .editCurrent(tabID: tab.id), placement: .address,
+                       text: tab.internalPage == nil ? tab.url : "")
+    }
+
+    func dismissCommandBar() {
+        commandBar?.close()
+        focusBrowser()
+    }
+
+    /// Runs the command bar's `item`.
+    func perform(_ item: CommandBarItem, from bar: CommandBar) {
+        if case let .siteSearch(site, query) = item.kind, query.isEmpty {
+            // "Search YouTube": the bar stays, to search the site.
+            bar.searchSite(site)
+            return
+        }
+        bar.close()
+        let mode = bar.model.mode
+        switch item.kind {
+        case let .navigate(url), let .open(url):
+            open(url, mode: mode)
+        case let .search(query):
+            open(store.settings.searchEngine.searchURL(for: query), mode: mode)
+        case let .siteSearch(site, query):
+            open(site.searchURL(for: query), mode: mode)
+        case let .switchToTab(tabID):
+            select(tabID)
+        case let .command(id):
+            CommandCatalog.perform(id, in: self)
+        }
+        focusBrowser()
+    }
+
+    /// Loads `url`, typed in the command bar.
+    func open(_ url: String, from bar: CommandBar) {
+        bar.close()
+        open(url, mode: bar.model.mode)
+        focusBrowser()
+    }
+
+    private func open(_ url: String, mode: CommandBarModel.Mode) {
+        switch mode {
+        case let .editCurrent(tabID):
+            guard let tab = store.webTab(tabID) else {
+                openNewTab(url)
+                return
+            }
+            tab.load(url)
+            select(tabID)
+        case .newTab, .splitPane:
+            // Split views are not part of the Windows app yet.
+            openNewTab(url)
+        }
     }
 
     /// Gives the keyboard to the shown browser.
     private func focusBrowser() {
-        endEditingAddress()
         if let shownBrowser { SetFocus(shownBrowser.hostWindow.handle) }
         shownBrowser?.setFocus(true)
     }
@@ -521,7 +612,10 @@ extension BrowserWindow: TabHost {
         closeTab(tab.id)
     }
 
-    func tabDidGainFocus(_ tab: WebTab) {}
+    func tabDidGainFocus(_ tab: WebTab) {
+        // A click in the page closes the command bar.
+        commandBar?.close()
+    }
 
     func tab(_ tab: WebTab, didChangeFullscreen fullscreen: Bool) {
         // The page fills the screen: hide the toolbar and the sidebar.

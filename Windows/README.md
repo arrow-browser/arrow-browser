@@ -8,8 +8,10 @@ For now its window is laid out as Arc's on Windows: a toolbar in the title
 bar (sidebar toggle, back, forward, reload, the address in the middle), the
 sidebar (the favorites grid, the space's pinned tabs and folders, the "Clear"
 divider, New Tab, today's tabs, the space switcher), and the selected tab's
-page in a rounded panel, over the space's gradient. Tabs and the selection
-are saved like on macOS; saved logins, payment cards and Arrow Cloud's
+page in a rounded panel, over the space's gradient. The command bar (Ctrl+T,
+Ctrl+L, a click on the address) finds open tabs, history, search
+suggestions and commands, and Arc's keyboard shortcuts work in the page too.
+Tabs and the selection are saved like on macOS; saved logins, payment cards and Arrow Cloud's
 secrets go to the Credential Manager.
 
 ## Requirements
@@ -61,7 +63,7 @@ powershell -File stage.ps1 $bin               # Arrow.exe and its runtime, next 
 
 | Path | Contents |
 |---|---|
-| `Sources/ArrowWindows` | The app: entry points, the browser window and its sidebar, the space theme's brushes, platform services (`WindowsPlatform`, the Credential Manager), CEF's message pump |
+| `Sources/ArrowWindows` | The app: entry points, the browser window, its sidebar and command bar, the commands and their keyboard shortcuts (`CommandCatalog`), the space theme's brushes, platform services (`WindowsPlatform`, the Credential Manager), CEF's message pump |
 | `Tests/ArrowWindowsTests` | Tests of the Windows-specific code |
 | `Sources/WinUI/Application` | `XamlApplication`, a WinUI application written in Swift (adapted from swift-winui) |
 | `Sources/CWinRT`, `Sources/*/Generated` | Generated projections |
