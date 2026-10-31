@@ -390,7 +390,12 @@ final class BrowserWindow {
         shownBrowser = browser
         // The panel's own fill would fringe the browser's clipped corners.
         browserArea.background = browser == nil ? brushes.content : brushes.clear
-        guard let browser else { return }
+        guard let browser else {
+            // Without a page, the address takes the keyboard, for the
+            // window's shortcuts (no focus rectangle: not from Tab).
+            if hadKeyboard { _ = try? addressButton.focus(.pointer) }
+            return
+        }
         browser.keyDownHandler = { [weak self] key in
             guard CommandCatalog.handles(key) else { return false }
             // Not from within the browser's key event: the command can close
@@ -439,6 +444,10 @@ final class BrowserWindow {
         root.keyDown.addHandler { [weak self] _, event in
             guard let self, let event else { return }
             event.handled = CommandCatalog.handle(.held(event.key.rawValue), in: self)
+        }
+        root.loaded.addHandler { [weak self] _, _ in
+            guard let self else { return }
+            commandBar?.open(over: root)
         }
         root.sizeChanged.addHandler { [weak self] _, _ in
             guard let self else { return }
@@ -490,7 +499,8 @@ final class BrowserWindow {
             commandBar = nil
         }
         commandBar = bar
-        bar.open(over: root)
+        // At launch, once the window's content is loaded.
+        if root.xamlRoot != nil { bar.open(over: root) }
     }
 
     /// Edits the selected tab's address in the command bar (Ctrl+L, a click
