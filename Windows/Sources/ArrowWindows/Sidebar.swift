@@ -18,6 +18,7 @@ final class Sidebar {
     private let scroller = ScrollViewer()
     private let bottomBar = Grid()
     private let archiveButton = Sidebar.barButton(Glyph.archive, name: "Archive")
+    private let downloadsButton = Sidebar.barButton(Glyph.download, name: "Downloads")
     private let addButton = Sidebar.barButton(Glyph.add, name: "Add")
     private let spaceBar = StackPanel()
 
@@ -41,6 +42,11 @@ final class Sidebar {
         }
         makeDropTarget(favorites) { .favorites() }
         layoutBottomBar()
+        // Apart from the rows: downloads change many times a second.
+        observe { [weak self] in
+            guard let self else { return }
+            downloadsButton.visibility = store.downloads.items.isEmpty ? .collapsed : .visible
+        }
         let rows: [(FrameworkElement, GridLength)] = [(favorites, .auto), (scroller, .star), (bottomBar, .auto)]
         for (index, (child, height)) in rows.enumerated() {
             let definition = RowDefinition()
@@ -397,7 +403,14 @@ final class Sidebar {
             column.width = width
             bottomBar.columnDefinitions.append(column)
         }
-        bottomBar.children.append(archiveButton)
+        let leading = StackPanel()
+        leading.orientation = .horizontal
+        leading.spacing = 2
+        leading.children.append(archiveButton)
+        // Shown while there are downloads.
+        downloadsButton.visibility = .collapsed
+        leading.children.append(downloadsButton)
+        bottomBar.children.append(leading)
         spaceBar.orientation = .horizontal
         spaceBar.spacing = 2
         spaceBar.horizontalAlignment = .center
@@ -406,6 +419,10 @@ final class Sidebar {
         try? Grid.setColumn(addButton, 2)
         bottomBar.children.append(addButton)
         archiveButton.click.addHandler { [weak self] _, _ in self?.window.showArchive() }
+        downloadsButton.click.addHandler { [weak self] _, _ in
+            guard let self else { return }
+            window.showDownloads(under: downloadsButton)
+        }
         addButton.click.addHandler { [weak self] _, _ in
             guard let self else { return }
             let menu = window.addMenu()
@@ -417,6 +434,7 @@ final class Sidebar {
     private func updateSpaceBar(selected: Foundation.UUID) {
         archiveButton.foreground = brushes.icon
         addButton.foreground = brushes.icon
+        downloadsButton.foreground = brushes.icon
         spaceBar.children.clear()
         for space in store.state.spaces {
             let button = Button()

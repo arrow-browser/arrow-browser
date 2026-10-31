@@ -52,6 +52,7 @@ final class BrowserWindow {
     private(set) var sidebar: Sidebar!
     private var commandBar: CommandBar?
     private var findBar: FindBar?
+    private var noticedDownloadID: UInt32?
     private var overlays: PageOverlays?
     /// Where the next split pane goes (Split View Options).
     var splitPlacement: (axis: SplitAxis, before: Bool) = (.horizontal, false)
@@ -108,6 +109,7 @@ final class BrowserWindow {
         observe { [weak self] in self?.sidebar.update() }
         observe { [weak self] in self?.updateSelectedTab() }
         observe { [weak self] in self?.updatePeek() }
+        observe { [weak self] in self?.noticeDownload() }
         overlays = PageOverlays(window: self)
     }
 
@@ -670,6 +672,13 @@ final class BrowserWindow {
                 }
             }
         }
+    }
+
+    /// A notice when a download is done, once.
+    private func noticeDownload() {
+        guard let item = store.downloads.recentlyCompleted, item.id != noticedDownloadID else { return }
+        noticedDownloadID = item.id
+        state.showToast("Downloaded \(item.fileName)")
     }
 
     // MARK: - Find

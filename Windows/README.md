@@ -14,8 +14,8 @@ Its interface is Arc's on Windows, in look and in function:
   "Clear" divider, New Tab, today's tabs; Arc's context menus (tab,
   favorite, folder, space), renaming in place, dragging to reorder, pin or
   file away; the archive, the space switcher and the Add menu at the bottom.
-- The command bar (Ctrl+T, Ctrl+L), find in page (Ctrl+F), split views of up
-  to four panes, Peek for links leaving pinned tabs, Little Arrow for links
+- The command bar (Ctrl+T, Ctrl+L), find in page (Ctrl+F), downloads, split
+  views of up to four panes, Peek for links leaving pinned tabs, Little Arrow for links
   from other apps, new and incognito windows, and the settings window.
 - The space's theme over the Mica backdrop, titles in a dark shade of its
   hue; dialogs for creating spaces, their icon and theme color.
