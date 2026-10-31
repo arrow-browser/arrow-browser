@@ -824,30 +824,42 @@ final class Sidebar {
         tab.customTitle.flatMap { $0.isEmpty ? nil : $0 } ?? store.tabs[tab.id]?.displayTitle ?? store.title(of: tab)
     }
 
-    /// Arc's closed folder (18 x 16): a tab over a rounded body, outlined
-    /// in the folder color, light inside.
+    /// Arc's closed folder (17 x 17), drawn on whole pixels: a body and a
+    /// tab outlined 2 pixels thick in the folder color, light inside, and a
+    /// fine line under the tab.
     private func closedFolderIcon() -> FrameworkElement {
         let icon = Canvas()
-        icon.width = 18
-        icon.height = 16
+        icon.width = 17
+        icon.height = 17
         icon.verticalAlignment = .center
+        // A pixel below the middle of the row, as Arc's.
+        icon.margin = Thickness(left: 0, top: 2, right: 0, bottom: 0)
+        let body = Rectangle()
+        body.width = 17
+        body.height = 15
+        body.radiusX = 2
+        body.radiusY = 2
+        try? Canvas.setTop(body, 2)
         let tab = Rectangle()
-        tab.width = 8
+        tab.width = 9
         tab.height = 5
         tab.radiusX = 1.5
         tab.radiusY = 1.5
-        tab.fill = brushes.folder
-        let body = Rectangle()
-        body.width = 18
-        body.height = 13
-        body.radiusX = 2.5
-        body.radiusY = 2.5
-        body.stroke = brushes.folder
-        body.strokeThickness = 2
-        body.fill = brushes.folderFill
-        try? Canvas.setTop(body, 3)
-        icon.children.append(tab)
-        icon.children.append(body)
+        for shape in [body, tab] {
+            shape.stroke = brushes.folder
+            shape.strokeThickness = 2
+            shape.fill = brushes.folderFill
+            icon.children.append(shape)
+        }
+        let line = Line()
+        line.x1 = 2
+        line.x2 = 15
+        line.y1 = 5.5
+        line.y2 = 5.5
+        line.stroke = brushes.folder
+        line.strokeThickness = 1
+        line.opacity = 0.55
+        icon.children.append(line)
         return icon
     }
 

@@ -35,6 +35,9 @@ final class ThemeBrushes {
     let clear = SolidColorBrush(Color(a: 0, r: 0, g: 0, b: 0))
     private(set) var palette: ThemePalette
 
+    /// The gradient of Arc's default space on Windows.
+    static let arcDefaultColors = [RGBColor(hex: 0x8B8BD5), RGBColor(hex: 0xEABFAF)]
+
     init(theme: SpaceTheme, isDark: Bool) {
         palette = theme.palette(isDark: isDark)
         background.startPoint = Point(x: 0, y: 0)
@@ -46,7 +49,10 @@ final class ThemeBrushes {
         let palette = theme.palette(isDark: isDark)
         self.palette = palette
         // Arc's tint over Mica: the theme's own colors, partly transparent.
-        let colors = theme.colors.count == 1 ? [theme.colors[0], theme.colors[0]] : theme.colors
+        // ArrowKit's default theme stands for Arc's default space on Windows:
+        // measured over the same Mica, a blue-violet to peach gradient.
+        let colors = theme == .lavender ? Self.arcDefaultColors
+            : theme.colors.count == 1 ? [theme.colors[0], theme.colors[0]] : theme.colors
         let alpha = isDark ? 0.18 + theme.intensity * 0.5 : 0.16 + theme.intensity * 0.6
         background.gradientStops.clear()
         for (index, color) in colors.enumerated() {
@@ -149,6 +155,7 @@ enum Glyph {
     static let close = "\u{E711}"
     static let folder = "\u{E8B7}"
     static let folderOpen = "\u{E838}"
+    static let folderFill = "\u{E8D5}"
     static let split = "\u{E89A}"
     static let globe = "\u{E774}"
     static let clear = "\u{E74B}"
