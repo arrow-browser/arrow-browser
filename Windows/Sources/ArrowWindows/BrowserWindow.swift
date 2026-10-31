@@ -48,7 +48,7 @@ final class BrowserWindow {
     /// The address in short form (the host), which edits the address.
     private let addressButton = Button()
     private let addressText = TextBlock()
-    private let loadingBar = ProgressBar()
+    private let loadingBar = Border()
     private(set) var sidebar: Sidebar!
     private var commandBar: CommandBar?
     private var findBar: FindBar?
@@ -313,16 +313,18 @@ final class BrowserWindow {
 
         addressText.fontSize = 13
         addressText.textTrimming = .characterEllipsis
-        // Arc's loading line, under the address.
-        loadingBar.isIndeterminate = true
+        addressText.verticalAlignment = .center
+        // Arc's loading line, under the address: as long as the page's load
+        // has gone.
         loadingBar.height = 2
-        loadingBar.minHeight = 0
+        loadingBar.cornerRadius = CornerRadius(1)
         loadingBar.verticalAlignment = .bottom
-        loadingBar.margin = Thickness(left: 0, top: 0, right: 0, bottom: -3)
-        loadingBar.foreground = brushes.icon
-        loadingBar.background = brushes.clear
+        loadingBar.horizontalAlignment = .left
+        loadingBar.margin = Thickness(left: 0, top: 0, right: 0, bottom: 1)
+        loadingBar.background = brushes.icon
         loadingBar.visibility = .collapsed
         let addressContent = Grid()
+        addressContent.height = 28
         addressContent.children.append(addressText)
         addressContent.children.append(loadingBar)
         addressButton.content = addressContent
@@ -434,7 +436,11 @@ final class BrowserWindow {
         addressText.foreground = address.isEmpty ? brushes.subtitle : brushes.title
         addressButton.background = address.isEmpty ? brushes.controlFill : brushes.clear
         copyLinkButton.isEnabled = !url.isEmpty
-        loadingBar.visibility = tab?.isLoading == true ? .visible : .collapsed
+        let isLoading = tab?.isLoading == true
+        loadingBar.visibility = isLoading ? .visible : .collapsed
+        if isLoading, let tab {
+            loadingBar.width = max(addressText.actualWidth * max(tab.progress, 0.1), 4)
+        }
         siteControlsButton.isEnabled = tab != nil
         translateButton.isEnabled = tab?.url.hasPrefix("http") == true
         if let findBar, findBar.tab !== tab { findBar.close() }
