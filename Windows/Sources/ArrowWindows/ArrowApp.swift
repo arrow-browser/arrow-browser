@@ -63,6 +63,9 @@ final class ArrowApp {
             try? FileManager.default.removeItem(at: profile)
             runtime.rootCachePath = profile
         }
+        // Arc's thin scrollbars over the page, shown while scrolling (the
+        // value keeps the features ArrowCEF enables: the last one counts).
+        runtime.browserSwitches.append(("enable-features", "DocumentPictureInPictureAPI,FluentScrollbar,FluentOverlayScrollbar,OverlayScrollbar"))
         // WinUI runs the message loop.
         let pump = MessagePump()
         runtime.usesExternalMessagePump = true
