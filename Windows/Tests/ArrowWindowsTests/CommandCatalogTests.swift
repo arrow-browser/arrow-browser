@@ -73,13 +73,26 @@ struct CommandCatalogTests {
         }
         #expect(found("view") == ["View Source", "View Archive", "View History"])
         #expect(found("tab").isEmpty)
-        #expect(found("sidebar") == ["Reveal Tab in Sidebar", "Toggle Sidebar"])
+        #expect(found("sidebar") == ["Toggle Sidebar", "Reveal Tab in Sidebar", "Toggle Sidebar"])
+        // A page found mid-title comes after the suggestions.
+        let splitView = CommandBarItem(id: "tab-split", kind: .switchToTab(UUID()), title: "Split View")
+        let viewSuggestion = CommandBarItem(id: "suggestion-views", kind: .search(query: "views"), title: "views")
+        #expect(CommandBarRanking.arrange([splitView, viewSuggestion], "view").map(\.id) == ["suggestion-views", "tab-split"])
         // The row chosen for a query comes first the next time.
         let query = "arrow-test-\(UUID().uuidString)"
         let search = CommandBarItem(id: "search", kind: .search(query: query), title: query)
         CommandBarRanking.remember(reload, for: query)
         #expect(CommandBarRanking.arrange([search, reload], query).first?.id == "command-reload")
         UserDefaults.standard.removeObject(forKey: "CommandBarSelections")
+        // Commands run often come first, as Arc's typeTravelUsage does.
+        let zoomIn = CommandBarItem(id: "command-zoom-in", kind: .command("zoom-in"), title: "Zoom In")
+        let resetZoom = CommandBarItem(id: "command-reset-zoom", kind: .command("reset-zoom"), title: "Reset Zoom")
+        let zoomSearch = CommandBarItem(id: "search", kind: .search(query: "zoom"), title: "zoom")
+        let ids = { CommandBarRanking.arrange([zoomSearch, resetZoom, zoomIn], "zoom").map(\.id).filter { !$0.hasPrefix("site-") } }
+        #expect(ids() == ["search", "command-reset-zoom", "command-zoom-in"])
+        for _ in 0..<CommandBarRanking.usageBump { CommandBarRanking.remember(zoomIn, for: "") }
+        #expect(ids() == ["command-zoom-in", "search", "command-reset-zoom"])
+        UserDefaults.standard.removeObject(forKey: "CommandBarCommandUsage")
         // Other well-known sites follow the search.
         #expect(CommandBarRanking.sites(matching: "new").map(\.name).prefix(2) == ["Google News", "Yahoo News"])
     }

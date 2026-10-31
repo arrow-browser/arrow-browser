@@ -4,8 +4,11 @@ import Foundation
 
 /// The command bar of Arc on Windows: five rows, a well-known site completed
 /// in the field ("transl" → translate.google.com), then the search, the
-/// other sites, open tabs, commands, history and suggestions. The row chosen
-/// for a query comes first the next time (Arc's queriesToSelectedArchetype).
+/// other sites, open tabs, commands, history and suggestions. Like Arc, it
+/// learns: the row chosen for a query comes first the next time
+/// (queriesToSelectedArchetype), commands run often come before others
+/// (typeTravelUsage) and tabs switched to lately before other tabs
+/// (recentlySwitchedToTabs).
 enum CommandBarRanking {
     struct Site {
         var domain: String
@@ -25,18 +28,43 @@ enum CommandBarRanking {
     ]
 
     private static let selectionsKey = "CommandBarSelections"
+    private static let usageKey = "CommandBarCommandUsage"
+    private static let switchedTabsKey = "CommandBarSwitchedTabs"
     private static let maximumSelections = 200
+    private static let maximumSwitchedTabs = 20
+    /// Runs after which a command matching what was typed comes first.
+    static let usageBump = 3
 
-    /// Remembers the row chosen for `query`, to list it first next time.
+    /// Remembers the row chosen for `query`, to list it first next time,
+    /// and counts the commands run and the tabs switched to.
     static func remember(_ item: CommandBarItem, for query: String) {
+        let defaults = UserDefaults.standard
+        switch item.kind {
+        case let .command(id):
+            var usage = defaults.dictionary(forKey: usageKey) as? [String: Int] ?? [:]
+            usage[id, default: 0] += 1
+            defaults.set(usage, forKey: usageKey)
+        case let .switchToTab(id):
+            var tabs = defaults.stringArray(forKey: switchedTabsKey) ?? []
+            tabs.removeAll { $0 == id.uuidString }
+            tabs.insert(id.uuidString, at: 0)
+            defaults.set(Array(tabs.prefix(maximumSwitchedTabs)), forKey: switchedTabsKey)
+        default:
+            break
+        }
         let query = query.trimmingCharacters(in: .whitespaces).lowercased()
         guard !query.isEmpty else { return }
-        var selections = UserDefaults.standard.dictionary(forKey: selectionsKey) as? [String: String] ?? [:]
+        var selections = defaults.dictionary(forKey: selectionsKey) as? [String: String] ?? [:]
         if selections[query] == nil, selections.count >= maximumSelections, let any = selections.keys.first {
             selections[any] = nil
         }
         selections[query] = identity(of: item)
-        UserDefaults.standard.set(selections, forKey: selectionsKey)
+        defaults.set(selections, forKey: selectionsKey)
+    }
+
+    /// How many times each command was run from the bar.
+    static var commandUsage: [String: Int] {
+        UserDefaults.standard.dictionary(forKey: usageKey) as? [String: Int] ?? [:]
     }
 
     /// What a row stands for, the same from one query to the next.
@@ -109,13 +137,39 @@ enum CommandBarRanking {
         }
         let search = items.filter { $0.id == "search" || $0.id == "navigate" }
         let byID = Dictionary(catalog.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let usage = commandUsage
+        func runs(_ item: CommandBarItem) -> Int {
+            if case let .command(id) = item.kind { usage[id] ?? 0 } else { 0 }
+        }
+        // Commands run more often first (a stable sort keeps Arc's order).
         var commands = items.filter { item in
             guard case let .command(id) = item.kind else { return false }
             return byID[id].map { matches($0, query) } ?? true
         }
+        commands = commands.enumerated().sorted { lhs, rhs in
+            let (left, right) = (runs(lhs.element), runs(rhs.element))
+            return left != right ? left > right : lhs.offset < rhs.offset
+        }.map(\.element)
+        // Tabs switched to lately first.
+        let switched = UserDefaults.standard.stringArray(forKey: switchedTabsKey) ?? []
+        func recency(_ item: CommandBarItem) -> Int {
+            guard case let .switchToTab(id) = item.kind else { return Int.max }
+            return switched.firstIndex(of: id.uuidString) ?? Int.max
+        }
         var tabs = items.filter { if case .switchToTab = $0.kind { true } else { false } }
-        let history = items.filter { $0.id.hasPrefix("history-") }
+            .enumerated().sorted { (recency($0.element), $0.offset) < (recency($1.element), $1.offset) }.map(\.element)
+        var history = items.filter { $0.id.hasPrefix("history-") }
         let suggestions = items.filter { $0.id.hasPrefix("suggestion") || $0.id == "chatgpt" }
+        // A page found in the middle of its title or address ("view" in
+        // "Split View") comes after the suggestions, as Arc scores the match
+        // by its position.
+        func startsWithQuery(_ item: CommandBarItem) -> Bool {
+            item.title.lowercased().hasPrefix(query) || item.url.flatMap { URLDisplay.host(of: $0) }?.hasPrefix(query) == true
+        }
+        let laterTabs = tabs.filter { !startsWithQuery($0) }
+        tabs = tabs.filter(startsWithQuery)
+        let laterHistory = history.filter { !startsWithQuery($0) }
+        history = history.filter(startsWithQuery)
         // Without a site, Arc's command for that word comes first.
         var first = completion
         let trigger = triggers[query] ?? triggers.keys.sorted().first { query.count >= 3 && $0.hasPrefix(query) }
@@ -123,6 +177,10 @@ enum CommandBarRanking {
         if first.isEmpty, let id = trigger,
            let index = commands.firstIndex(where: { $0.kind == .command(id) }) {
             first = [commands.remove(at: index)]
+        }
+        // Or the command run most, once run often.
+        if first.isEmpty, let command = commands.first, runs(command) >= usageBump {
+            first = [commands.removeFirst()]
         }
         // Then an open tab named after what was typed.
         if first.isEmpty, let index = tabs.firstIndex(where: { $0.title.lowercased().hasPrefix(query) }) {
@@ -133,7 +191,7 @@ enum CommandBarRanking {
             CommandBarItem(id: "site-\(site.domain)", kind: .open(url: site.url), title: site.name, subtitle: site.url,
                            url: site.url)
         }
-        var rows = first + search + otherSites + tabs + commands + history + suggestions
+        var rows = first + search + otherSites + tabs + commands + history + suggestions + laterTabs + laterHistory
         // The row chosen the last time this was typed.
         let selections = UserDefaults.standard.dictionary(forKey: selectionsKey) as? [String: String]
         if let chosen = selections?[query], let index = rows.firstIndex(where: { identity(of: $0) == chosen }) {

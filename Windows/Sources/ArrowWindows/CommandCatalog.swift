@@ -137,6 +137,8 @@ enum CommandCatalog {
             $0.resetAllTabsInSpace()
         },
         entry("expand-folders", "Expand All Folders", ["reveal"], "folder", []) { $0.expandAllFolders() },
+        // Arc lists Toggle Sidebar twice (its menu's and its window's).
+        entry("toggle-sidebar-window", "Toggle Sidebar", ["sidebar"], "sidebar.left", []) { $0.toggleSidebar() },
         entry("reveal", "Reveal Tab in Sidebar", ["sidebar"], "sidebar.left", []) { $0.revealSelectedTab() },
         entry("settings", "Settings", [], "gearshape", [Shortcut.settings]) { _ in SettingsWindow.show() },
         entry("toggle-sidebar", "Toggle Sidebar", ["sidebar"], "sidebar.left", [Shortcut.toggleSidebar]) {

@@ -116,19 +116,19 @@ final class CommandBar {
     private func fieldRow() -> Grid {
         let row = Grid()
         row.height = 52
-        row.padding = Thickness(left: 18, top: 0, right: 16, bottom: 0)
-        row.columnSpacing = 9
+        row.padding = Thickness(left: 18, top: 0, right: 3, bottom: 0)
+        // Arc's: a 16-pixel icon, the text 4 pixels after it.
+        row.columnSpacing = 4
         for width in [GridLength.auto, .star, .auto] {
             let column = ColumnDefinition()
             column.width = width
             row.columnDefinitions.append(column)
         }
-        fieldIcon.width = 24
+        fieldIcon.width = 16
         fieldIcon.foreground = colors.secondary
         row.children.append(fieldIcon)
         fieldFavicon.width = 16
         fieldFavicon.height = 16
-        fieldFavicon.margin = Thickness(left: 4, top: 0, right: 4, bottom: 0)
         fieldFavicon.visibility = .collapsed
         row.children.append(fieldFavicon)
         siteName.fontSize = 13
@@ -143,7 +143,9 @@ final class CommandBar {
 
         field.fontSize = 16
         field.minHeight = 0
-        field.padding = Thickness()
+        field.height = 32
+        // WinUI's TextControlThemePadding, which Arc keeps.
+        field.padding = Thickness(left: 10, top: 5, right: 6, bottom: 6)
         field.verticalAlignment = .center
         field.isSpellCheckEnabled = false
         field.selectionHighlightColor = colors.accent
