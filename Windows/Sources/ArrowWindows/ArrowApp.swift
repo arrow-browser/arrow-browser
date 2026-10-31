@@ -89,17 +89,7 @@ final class ArrowApp {
     }
 
     fileprivate func launched() {
-        let window: BrowserWindow
-        do {
-            window = try BrowserWindow(store: store)
-        } catch {
-            print("arrow: the window failed to open: \(error)")
-            return
-        }
-        windows.append(window)
-        window.onClose = { [weak self, weak window] in
-            self?.windows.removeAll { $0 === window }
-        }
+        guard let window = open(store) else { return }
         guard smoke else {
             for address in addresses { window.openNewTab(address) }
             // Like Arc, an empty window starts with the command bar.
@@ -113,6 +103,52 @@ final class ArrowApp {
             print("arrow: the page did not load within 60 seconds")
             exit(1)
         }
+    }
+
+    /// Whether a window other than `window` shows `window`'s store.
+    static func hasOtherWindow(than window: BrowserWindow) -> Bool {
+        current?.windows.contains { $0 !== window && $0.store === window.store } ?? false
+    }
+
+    /// The store of the app's windows (not of incognito ones).
+    static var store: BrowserStore? { current?.store }
+
+    /// Opens `address` in a new tab of the last window.
+    static func openInFrontWindow(_ address: String) {
+        current?.windows.last { !$0.store.isIncognito }?.openNewTab(address)
+    }
+
+    /// Moves a page from Little Arrow into the last window's today tabs.
+    static func adopt(_ tab: WebTab) {
+        current?.windows.last { !$0.store.isIncognito }?.adopt(tab)
+    }
+
+    /// Opens another browser window on the current space (New Window), or an
+    /// incognito one, on a store of its own that keeps nothing.
+    static func openWindow(incognito: Bool = false) {
+        guard let app = current else { return }
+        let source = app.store
+        let store = incognito
+            ? BrowserStore(incognitoWith: source.settings, downloads: source.downloads, engine: source.engine,
+                           platform: source.platform)
+            : source
+        let spaceID = incognito ? store.state.spaces[0].id : app.windows.last?.state.selectedSpaceID ?? store.state.spaces[0].id
+        app.open(store, spaceID: spaceID)?.showCommandBar(mode: .newTab)
+    }
+
+    private func open(_ store: BrowserStore, spaceID: Foundation.UUID? = nil) -> BrowserWindow? {
+        let window: BrowserWindow
+        do {
+            window = try BrowserWindow(store: store, spaceID: spaceID)
+        } catch {
+            print("arrow: the window failed to open: \(error)")
+            return nil
+        }
+        windows.append(window)
+        window.onClose = { [weak self, weak window] in
+            self?.windows.removeAll { $0 === window }
+        }
+        return window
     }
 
     private func smokeTest(_ tab: WebTab, in window: BrowserWindow) async {

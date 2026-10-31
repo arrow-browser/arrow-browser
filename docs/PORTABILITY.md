@@ -148,17 +148,23 @@ Done when a window with one CEF browser runs on Windows and Linux.
     layered, as Arc's: WinUI takes the mouse input over its window's other
     child windows. Browsers not shown wait in a hidden, disabled window,
     which a browser created there cannot activate.
-  - The command bar is a windowed popup, over the browser. The browser
-    reports keys before the page gets them (CEF's keyboard handler), for
-    the keyboard shortcuts, which no menu bar takes first as on macOS.
+  - Everything shown over the page (the command bar, menus, flyouts, the
+    find bar, dialogs, Peek's buttons) is a windowed popup, which WinUI
+    puts in a window of its own, over the browser: a `ContentDialog` would
+    show under it. The browser reports keys before the page gets them
+    (CEF's keyboard handler), for the keyboard shortcuts, which no menu bar
+    takes first as on macOS.
+  - The interface follows Arc's on Windows, observed in Arc itself (its
+    menus, measured sizes, Mica backdrop, ink colors): see the
+    [Windows README](../Windows/README.md).
   - WinUI runs the message loop. CEF's external message pump runs its work
     from a hidden window's messages and timer, so it also runs in modal loops
     (moving, resizing a window), and runs the main queue.
   - The app is unpackaged: it loads the Windows App SDK runtime, a framework
     package installed by its redistributable, through the SDK's
     bootstrapper.
-- Rebuild the UI of the macOS app: sidebar, spaces, command bar, split view,
-  Peek, Library, settings.
+- Rebuild the UI of the macOS app as Arc's on Windows (done): sidebar,
+  spaces, command bar, split view, Peek, Little Arrow, archive, settings.
 - Command bar: open Windows file paths (`C:\…`, `\\server\share`) typed in
   it, as `URLInput` does for `/…` and `~/…`.
 - Build with SwiftPM (CMake where SwiftPM falls short), ship an installer.

@@ -5,13 +5,18 @@ import UWP
 import WindowsFoundation
 import WinUI
 
-/// The current space's colors (ArrowKit's `ThemePalette`) as WinUI brushes.
+/// The current space's colors (ArrowKit's `ThemePalette`) as WinUI brushes,
+/// as Arc draws them on Windows: the theme's colors over Mica (the desktop
+/// showing through), titles and icons in a dark shade of the theme's hue.
 /// The window's elements share them, and they change color in place when
 /// the space or its theme changes.
 @MainActor
 final class ThemeBrushes {
-    /// The space gradient behind the sidebar and around the content.
+    /// The space gradient behind the sidebar and around the content, over
+    /// the window's Mica backdrop.
     let background = LinearGradientBrush()
+    /// Folder icons, in a vivid shade of the theme's hue.
+    let folder = SolidColorBrush()
     let title = SolidColorBrush()
     let subtitle = SolidColorBrush()
     let icon = SolidColorBrush()
@@ -22,38 +27,48 @@ final class ThemeBrushes {
     let pressed = SolidColorBrush()
     let selection = SolidColorBrush()
     let separator = SolidColorBrush()
+    /// The bottom edge of the selected row, Arc's card shadow.
+    let selectionEdge = SolidColorBrush()
     let content = SolidColorBrush()
     let clear = SolidColorBrush(Color(a: 0, r: 0, g: 0, b: 0))
     private(set) var palette: ThemePalette
 
-    init(palette: ThemePalette) {
-        self.palette = palette
+    init(theme: SpaceTheme, isDark: Bool) {
+        palette = theme.palette(isDark: isDark)
         background.startPoint = Point(x: 0, y: 0)
         background.endPoint = Point(x: 1, y: 1)
-        apply(palette)
+        apply(theme: theme, isDark: isDark)
     }
 
-    func apply(_ palette: ThemePalette) {
+    func apply(theme: SpaceTheme, isDark: Bool) {
+        let palette = theme.palette(isDark: isDark)
         self.palette = palette
-        let stops = palette.backgroundStops.count == 1
-            ? [palette.backgroundStops[0], palette.backgroundStops[0]] : palette.backgroundStops
+        // Arc's tint over Mica: the theme's own colors, partly transparent.
+        let colors = theme.colors.count == 1 ? [theme.colors[0], theme.colors[0]] : theme.colors
+        let alpha = isDark ? 0.18 + theme.intensity * 0.5 : 0.16 + theme.intensity * 0.6
         background.gradientStops.clear()
-        for (index, color) in stops.enumerated() {
+        for (index, color) in colors.enumerated() {
             let stop = GradientStop()
-            stop.color = Color(color)
-            stop.offset = Double(index) / Double(stops.count - 1)
+            stop.color = Color(color.withAlpha(alpha))
+            stop.offset = Double(index) / Double(colors.count - 1)
             background.gradientStops.append(stop)
         }
-        title.color = Color(palette.title)
+        let hue = theme.primary.hsb.hue
+        // Arc's titles and icons on Windows: a dark shade of the theme's hue
+        // (#0D0F4B in its default space).
+        let ink = isDark ? palette.title : RGBColor(hue: hue, saturation: 0.82, brightness: 0.29)
+        title.color = Color(ink)
         subtitle.color = Color(palette.subtitle)
-        icon.color = Color(palette.icon)
-        disabledIcon.color = Color(palette.icon.withAlpha(0.45))
+        icon.color = Color(isDark ? palette.icon : ink)
+        folder.color = Color(RGBColor(hue: hue, saturation: 0.82, brightness: isDark ? 1 : 0.98))
+        disabledIcon.color = Color((isDark ? palette.icon : ink).withAlpha(0.4))
         controlFill.color = Color(palette.controlFill)
         controlHover.color = Color(palette.controlFill.withAlpha(min(palette.controlFill.alpha * 1.6, 1)))
         hover.color = Color(palette.hover)
         pressed.color = Color(palette.isDark ? RGBColor.white.withAlpha(0.12) : RGBColor.black.withAlpha(0.08))
         selection.color = Color(palette.selection)
-        separator.color = Color(palette.subtitle.withAlpha(0.25))
+        separator.color = Color(palette.subtitle.withAlpha(0.35))
+        selectionEdge.color = Color(RGBColor.black.withAlpha(isDark ? 0.2 : 0.07))
         content.color = Color(palette.contentBackground)
     }
 
@@ -94,7 +109,7 @@ enum Glyph {
     static let back = "\u{E72B}"
     static let forward = "\u{E72A}"
     static let reload = "\u{E72C}"
-    static let sidebar = "\u{E8A0}"
+    static let sidebar = "\u{E90C}"
     static let link = "\u{E71B}"
     static let add = "\u{E710}"
     static let close = "\u{E711}"
@@ -107,6 +122,37 @@ enum Glyph {
     static let history = "\u{E81C}"
     static let pin = "\u{E718}"
     static let undo = "\u{E7A7}"
+    static let heart = "\u{EB51}"
+    static let update = "\u{EBD3}"
+    static let importItems = "\u{E8B5}"
+    static let newWindow = "\u{E78B}"
+    static let incognito = "\u{E890}"
+    static let spaces = "\u{E8A9}"
+    static let extensions = "\u{EA86}"
+    static let developer = "\u{E943}"
+    static let help = "\u{E76E}"
+    static let settings = "\u{E713}"
+    static let print = "\u{E749}"
+    static let person = "\u{E77B}"
+    static let newSpace = "\u{E90C}"
+    static let newFolder = "\u{E8F4}"
+    static let addCircle = "\u{ECC8}"
+    static let splitView = "\u{E89A}"
+    static let splitRight = "\u{E90D}"
+    static let splitLeft = "\u{E90C}"
+    static let splitTop = "\u{E90E}"
+    static let splitBottom = "\u{E90E}"
+    static let siteControls = "\u{E9E9}"
+    static let archive = "\u{E7B8}"
+    static let lock = "\u{E72E}"
+    static let share = "\u{E72D}"
+    static let more = "\u{E712}"
+    static let find = "\u{E721}"
+    static let chevronUp = "\u{E70E}"
+    static let chevronDown = "\u{E70D}"
+    static let speaker = "\u{E767}"
+    static let mute = "\u{E74F}"
+    static let download = "\u{E896}"
 
     static let font = FontFamily("Segoe Fluent Icons")
 

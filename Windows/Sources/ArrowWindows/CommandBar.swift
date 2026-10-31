@@ -13,10 +13,9 @@ import WinUI
 @MainActor
 final class CommandBar {
     enum Placement {
-        /// In the middle of the window (Ctrl+T).
+        /// In the middle of the window, as Arc on Windows opens it for
+        /// Ctrl+T and Ctrl+L alike.
         case center
-        /// Over the address in the title bar (Ctrl+L, a click on it).
-        case address
     }
 
     let model: CommandBarModel
@@ -28,6 +27,7 @@ final class CommandBar {
     private let panel = Border()
     private let field = TextBox()
     private let fieldIcon = Glyph.view(Glyph.search)
+    private let fieldFavicon = Image()
     private let siteChip = Border()
     private let siteName = TextBlock()
     private let hint = StackPanel()
@@ -59,16 +59,9 @@ final class CommandBar {
 
     /// Fits the bar to `root`'s size.
     func place(in root: FrameworkElement) {
-        let width: Double
-        switch placement {
-        case .center:
-            // Arc's, as the macOS app measured it.
-            width = min(764, root.actualWidth - 80)
-            popup.verticalOffset = max(root.actualHeight / 2 - 168, 40)
-        case .address:
-            width = min(640, root.actualWidth - 16)
-            popup.verticalOffset = 2
-        }
+        // Arc's on Windows: 720 wide, its top at 36% of the window.
+        let width = min(720, root.actualWidth - 48)
+        popup.verticalOffset = max(root.actualHeight * 0.36, 40)
         panel.width = max(width, 0)
         popup.horizontalOffset = (root.actualWidth - width) / 2
     }
@@ -116,8 +109,8 @@ final class CommandBar {
     /// and before the site search a Tab would start.
     private func fieldRow() -> Grid {
         let row = Grid()
-        row.height = 62
-        row.padding = Thickness(left: 20, top: 0, right: 16, bottom: 0)
+        row.height = 52
+        row.padding = Thickness(left: 18, top: 0, right: 16, bottom: 0)
         row.columnSpacing = 9
         for width in [GridLength.auto, .star, .auto] {
             let column = ColumnDefinition()
@@ -127,6 +120,11 @@ final class CommandBar {
         fieldIcon.width = 24
         fieldIcon.foreground = colors.secondary
         row.children.append(fieldIcon)
+        fieldFavicon.width = 16
+        fieldFavicon.height = 16
+        fieldFavicon.margin = Thickness(left: 4, top: 0, right: 4, bottom: 0)
+        fieldFavicon.visibility = .collapsed
+        row.children.append(fieldFavicon)
         siteName.fontSize = 13
         siteName.fontWeight = FontWeight(weight: 600)
         siteName.foreground = colors.text
@@ -137,8 +135,7 @@ final class CommandBar {
         siteChip.verticalAlignment = .center
         row.children.append(siteChip)
 
-        field.fontSize = 18
-        field.fontWeight = FontWeight(weight: 500)
+        field.fontSize = 16
         field.minHeight = 0
         field.padding = Thickness()
         field.verticalAlignment = .center
@@ -183,12 +180,16 @@ final class CommandBar {
 
         // Arc shows the kind of the selected row (history, search…) in the
         // field.
-        let symbol = model.typedText.isEmpty ? nil : model.selectedItem?.symbol
-        fieldIcon.text = Glyph.symbol(symbol ?? "magnifyingglass")
+        let selected = model.typedText.isEmpty ? nil : model.selectedItem
+        fieldIcon.text = Glyph.symbol(selected?.symbol ?? "magnifyingglass")
+        // A page's row shows its favicon there, as on Arc for Windows.
+        let favicon = selected.flatMap { $0.symbol == nil ? faviconImage(for: $0) : nil }
+        fieldFavicon.source = favicon?.bitmap
         let site = model.activeSiteSearch
         siteName.text = site?.name ?? ""
         siteChip.visibility = site == nil ? .collapsed : .visible
-        fieldIcon.visibility = site == nil ? .visible : .collapsed
+        fieldIcon.visibility = site == nil && favicon == nil ? .visible : .collapsed
+        fieldFavicon.visibility = site == nil && favicon != nil ? .visible : .collapsed
         field.placeholderText = model.placeholder
         let siteHint = model.siteSearchHint
         hintText.text = siteHint.map { "Search \($0.name)" } ?? ""
@@ -200,7 +201,7 @@ final class CommandBar {
     private func row(for item: CommandBarItem, at index: Int, isSelected: Bool) -> UIElement {
         let foreground = isSelected ? colors.onAccent : colors.text
         let row = Grid()
-        row.height = 46
+        row.height = 48
         row.padding = Thickness(left: 10, top: 0, right: 13, bottom: 0)
         row.columnSpacing = 9
         row.cornerRadius = CornerRadius(7)
@@ -257,14 +258,8 @@ final class CommandBar {
             actions.children.append(text)
             if case .switchToTab = item.kind {
                 let arrow = Glyph.view(Glyph.forward, size: 11)
-                arrow.foreground = isSelected ? colors.accent : colors.secondary
-                let tile = Border()
-                tile.width = 24
-                tile.height = 24
-                tile.cornerRadius = CornerRadius(6)
-                tile.background = isSelected ? colors.onAccent : colors.tile
-                tile.child = arrow
-                actions.children.append(tile)
+                arrow.foreground = isSelected ? colors.onAccent : colors.secondary
+                actions.children.append(arrow)
             }
             try? Grid.setColumn(actions, 2)
             row.children.append(actions)
@@ -283,7 +278,7 @@ final class CommandBar {
 
     /// Scrolls the list to show the row at `index`.
     private func scrollToRow(_ index: Int) {
-        let rowHeight = 46.0, spacing = 4.0
+        let rowHeight = 48.0, spacing = 4.0
         let top = rows.padding.top + Double(index) * (rowHeight + spacing)
         let offset = scroller.verticalOffset
         if top < offset {
@@ -293,10 +288,14 @@ final class CommandBar {
         }
     }
 
-    private func favicon(for item: CommandBarItem) -> FrameworkElement {
+    private func faviconImage(for item: CommandBarItem) -> PageImage? {
         var image: PageImage?
         if case let .switchToTab(id) = item.kind { image = window.store.tabs[id]?.favicon }
-        guard let image = image ?? item.url.flatMap({ FaviconCache.shared.image(for: $0) }) else {
+        return image ?? item.url.flatMap { FaviconCache.shared.image(for: $0) }
+    }
+
+    private func favicon(for item: CommandBarItem) -> FrameworkElement {
+        guard let image = faviconImage(for: item) else {
             let globe = Glyph.view(Glyph.globe)
             globe.foreground = colors.secondary
             return globe
