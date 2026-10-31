@@ -68,6 +68,8 @@
     "Microsoft.UI.Xaml.XamlRoot",
     "Microsoft.UI.Xaml.XamlTypeInfo.XamlControlsXamlMetaDataProvider",
     "Windows.ApplicationModel.DataTransfer.DataPackage",
+    "Windows.ApplicationModel.DataTransfer.DataRequestedEventArgs",
+    "Windows.ApplicationModel.DataTransfer.DataTransferManager",
     "Windows.Storage.Streams.DataWriter",
     "Windows.Storage.Streams.InMemoryRandomAccessStream"
   ],

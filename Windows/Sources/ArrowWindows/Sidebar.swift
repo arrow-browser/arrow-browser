@@ -21,6 +21,11 @@ final class Sidebar {
     private let downloadsButton = Sidebar.barButton(Glyph.download, name: "Downloads")
     private let addButton = Sidebar.barButton(Glyph.add, name: "Add")
     private let spaceBar = StackPanel()
+    /// Arc's media controls, for a tab playing out of sight.
+    private let mediaBar = Border()
+    /// The tab paused from the media controls, which stay (with Play) while
+    /// it shows the same page.
+    private var pausedMedia: (id: Foundation.UUID, url: String)?
 
     init(window: BrowserWindow) throws {
         self.window = window
@@ -47,7 +52,13 @@ final class Sidebar {
             guard let self else { return }
             downloadsButton.visibility = store.downloads.items.isEmpty ? .collapsed : .visible
         }
-        let rows: [(FrameworkElement, GridLength)] = [(favorites, .auto), (scroller, .star), (bottomBar, .auto)]
+        mediaBar.cornerRadius = CornerRadius(8)
+        mediaBar.padding = Thickness(left: 9, top: 6, right: 4, bottom: 6)
+        mediaBar.margin = Thickness(left: 0, top: 6, right: 0, bottom: 0)
+        mediaBar.visibility = .collapsed
+        observe { [weak self] in self?.updateMediaBar() }
+        let rows: [(FrameworkElement, GridLength)] = [(favorites, .auto), (scroller, .star), (mediaBar, .auto),
+                                                      (bottomBar, .auto)]
         for (index, (child, height)) in rows.enumerated() {
             let definition = RowDefinition()
             definition.height = height
@@ -182,7 +193,9 @@ final class Sidebar {
             makeDropTarget(row) { before }
             list.children.append(row)
         case let .folder(folder):
-            let icon = Glyph.view(folder.isExpanded ? Glyph.folderOpen : Glyph.folder, size: 16)
+            // A live folder shows Arc's bolt.
+            let icon = Glyph.view(LiveFolders.shared.isLive(folder.id) ? Glyph.live
+                                  : folder.isExpanded ? Glyph.folderOpen : Glyph.folder, size: 16)
             icon.foreground = brushes.folder
             let row = row(title: folder.title, icon: icon, isSelected: false, depth: depth, isBold: true,
                           renaming: folder.id, rename: { [weak self] title in
@@ -464,6 +477,86 @@ final class Sidebar {
         }
     }
 
+    // MARK: - Media
+
+    /// Shows the controls of a tab playing sound that the window does not
+    /// show: its favicon and title (a click selects it), play or pause, and
+    /// mute.
+    private func updateMediaBar() {
+        // The set of live tabs is not observable; what changes it is (the
+        // tabs, the selected one).
+        _ = (store.state, state.selectedTabID)
+        let paused = pausedMedia.flatMap { paused in
+            store.tabs[paused.id].flatMap { $0.url == paused.url ? $0 : nil }
+        }
+        let playing = store.tabs.values.first { $0.isPlayingMedia && !window.isDisplaying($0) }
+            ?? paused.flatMap { window.isDisplaying($0) ? nil : $0 }
+        guard let tab = playing else {
+            pausedMedia = nil
+            mediaBar.visibility = .collapsed
+            mediaBar.child = nil
+            return
+        }
+        let row = Grid()
+        row.columnSpacing = 8
+        for width in [GridLength.auto, .star, .auto, .auto] {
+            let column = ColumnDefinition()
+            column.width = width
+            row.columnDefinitions.append(column)
+        }
+        let icon: FrameworkElement
+        if let favicon = tab.favicon {
+            let image = Image()
+            image.source = favicon.bitmap
+            image.width = 16
+            image.height = 16
+            icon = image
+        } else {
+            icon = Glyph.view(Glyph.speaker, size: 13)
+        }
+        icon.verticalAlignment = .center
+        row.children.append(icon)
+        let title = TextBlock()
+        title.text = tab.displayTitle
+        title.fontSize = 12
+        title.textTrimming = .characterEllipsis
+        title.verticalAlignment = .center
+        title.foreground = brushes.title
+        try? Grid.setColumn(title, 1)
+        row.children.append(title)
+        let tabID = tab.id
+        let isPlaying = tab.isPlayingMedia
+        for (index, (glyph, name, action)) in [
+            (isPlaying ? Glyph.pause : Glyph.play, isPlaying ? "Pause" : "Play", { [weak self] in
+                self?.pausedMedia = isPlaying ? (tabID, tab.url) : nil
+                tab.playPauseMedia()
+            }),
+            (tab.isMuted ? Glyph.mute : Glyph.speaker, tab.isMuted ? "Unmute" : "Mute",
+             { [weak self] in self?.window.toggleMute(tabID) }),
+        ].enumerated() {
+            let button = Button()
+            button.content = Glyph.view(glyph, size: 12)
+            button.width = 26
+            button.height = 26
+            button.padding = Thickness()
+            button.cornerRadius = CornerRadius(6)
+            try? AutomationProperties.setName(button, name)
+            try? ToolTipService.setToolTip(button, name)
+            try? Grid.setColumn(button, Int32(index + 2))
+            button.click.addHandler { _, _ in action() }
+            // Not a tap of the row, which shows the tab.
+            button.tapped.addHandler { _, args in args?.handled = true }
+            row.children.append(button)
+        }
+        // Hit-testable where empty: a click shows the tab.
+        row.background = brushes.clear
+        row.tapped.addHandler { [weak self] _, _ in self?.window.select(tabID) }
+        mediaBar.child = row
+        mediaBar.background = brushes.controlFill
+        mediaBar.visibility = .visible
+        try? AutomationProperties.setName(mediaBar, "Now Playing")
+    }
+
     // MARK: - Menus
 
     /// Arc's menu of a pinned or today tab.
@@ -567,9 +660,15 @@ final class Sidebar {
                 Menu.toggle(profile.name, isOn: profile.id == space.profileID) { [weak self] in
                     self?.store.update { $0.updateSpace(space.id) { $0.profileID = profile.id } }
                 }
-            }),
+            } + [
+                Menu.separator(),
+                Menu.item("New Profile…") { [weak self] in self?.window.newProfile(for: space.id) },
+            ]),
             Menu.separator(),
             Menu.item("New Folder") { [weak self] in self?.window.newFolder() },
+            Menu.submenu("Live Folders", [
+                Menu.item("GitHub") { [weak self] in self?.window.newLiveFolder() },
+            ]),
             Menu.separator(),
             Menu.item("Delete Space", isEnabled: store.state.spaces.count > 1) { [weak self] in
                 self?.window.deleteSpace(space.id)

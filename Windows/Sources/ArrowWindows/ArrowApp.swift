@@ -66,6 +66,13 @@ final class ArrowApp {
         // Arc's thin scrollbars over the page, shown while scrolling (the
         // value keeps the features ArrowCEF enables: the last one counts).
         runtime.browserSwitches.append(("enable-features", "DocumentPictureInPictureAPI,FluentScrollbar,FluentOverlayScrollbar,OverlayScrollbar"))
+        // Links opened from other apps while Arrow runs: Chromium hands the
+        // new launch over to this process.
+        runtime.onRelaunch = { arguments in
+            for address in URLInput.commandLineAddresses(arguments) {
+                ArrowApp.openExternal(address)
+            }
+        }
         // WinUI runs the message loop.
         let pump = MessagePump()
         runtime.usesExternalMessagePump = true
@@ -94,6 +101,7 @@ final class ArrowApp {
     fileprivate func launched() {
         guard let window = open(store) else { return }
         guard smoke else {
+            LiveFolders.shared.start(store: store)
             for address in addresses { window.openNewTab(address) }
             // Like Arc, an empty window starts with the command bar.
             if window.state.selectedTabID == nil { window.showCommandBar(mode: .newTab) }
@@ -124,6 +132,28 @@ final class ArrowApp {
     /// Opens `address` in a new tab of the last window.
     static func openInFrontWindow(_ address: String) {
         current?.windows.last { !$0.store.isIncognito }?.openNewTab(address)
+    }
+
+    /// Opens a link from another app as Arc does: in the space an Air Traffic
+    /// Control rule routes it to, else in Little Arrow, or in a tab of the
+    /// last window (Settings ▸ General).
+    static func openExternal(_ address: String) {
+        guard let app = current else { return }
+        let store = app.store
+        let window = app.windows.last { !$0.store.isIncognito }
+        if let spaceID = store.settings.route(address), let window {
+            window.selectSpace(spaceID)
+            window.openNewTab(address)
+            window.bringToFront()
+            return
+        }
+        switch store.settings.externalLinks {
+        case .littleArrow:
+            LittleArrowWindow.open(address, from: store)
+        case .activeSpace:
+            window?.openNewTab(address)
+            window?.bringToFront()
+        }
     }
 
     /// Moves a page from Little Arrow into the last window's today tabs.

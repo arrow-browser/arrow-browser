@@ -122,6 +122,11 @@ final class SettingsWindow {
              trailing: toggle(settings.automaticPictureInPicture) { [weak self] in
                  self?.store.settings.automaticPictureInPicture = $0
              })
+        card("Open links from other apps in", "Little Arrow, or a new tab of your current Space.",
+             trailing: choice(["Little Arrow", "Current Space"],
+                              selected: settings.externalLinks == .littleArrow ? 0 : 1) { [weak self] index in
+            self?.store.settings.externalLinks = index == 0 ? .littleArrow : .activeSpace
+        })
         card("Block ads and trackers", nil,
              trailing: toggle(settings.adBlockerEnabled) { [weak self] in self?.store.settings.adBlockerEnabled = $0 })
         card("Search suggestions", nil,
@@ -145,6 +150,11 @@ final class SettingsWindow {
             card(installed.name, "Version \(installed.version)", trailing: controls)
         }
 
+        // Card
+        heading("Arrow Card", nil)
+        text("Here's your Arrow Card. Show it off to the world or keep it to yourself.")
+        sections.children.append(arrowCard())
+
         // Max
         heading("Arrow Max", .max)
         text("Let Arrow do more for you with Max. Max features send data to your Arrow Cloud server's AI partner.")
@@ -163,6 +173,79 @@ final class SettingsWindow {
              trailing: button("Export Data") { [weak self] in self?.exportData() })
         card("Developer mode", "Shows full addresses and developer tools in menus.",
              trailing: toggle(settings.developerMode) { [weak self] in self?.store.settings.developerMode = $0 })
+    }
+
+    /// Arc's card: the user's name, a title earned by browsing, and the day
+    /// they started, over their space's colors.
+    private func arrowCard() -> UIElement {
+        let visits = store.history.entries.values.reduce(0) { $0 + $1.visitCount }
+        let rank = switch visits {
+        case ..<100: "CURIOUS EXPLORER"
+        case ..<1000: "AVID SURFER"
+        default: "MIGHTY READER"
+        }
+        let created = (try? FileManager.default.attributesOfItem(atPath: store.dataDirectory.path)[.creationDate]) as? Date
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMM yyyy"
+        let name = store.cloud.user?.displayName ?? ProcessInfo.processInfo.environment["USERNAME"] ?? "Arrow"
+        let theme = store.state.spaces.first?.theme ?? .lavender
+        let background = LinearGradientBrush()
+        background.startPoint = Point(x: 0, y: 0)
+        background.endPoint = Point(x: 1, y: 1)
+        let colors = theme.colors.count == 1 ? [theme.colors[0], theme.colors[0]] : theme.colors
+        for (index, color) in colors.enumerated() {
+            let stop = GradientStop()
+            stop.color = Color(color)
+            stop.offset = Double(index) / Double(colors.count - 1)
+            background.gradientStops.append(stop)
+        }
+        let card = Grid()
+        card.width = 340
+        card.height = 200
+        card.horizontalAlignment = .left
+        card.cornerRadius = CornerRadius(16)
+        card.padding = Thickness(left: 22, top: 20, right: 22, bottom: 18)
+        card.background = background
+        card.requestedTheme = .dark
+        for height in [GridLength.auto, .star, .auto] {
+            let row = RowDefinition()
+            row.height = height
+            card.rowDefinitions.append(row)
+        }
+        let brand = TextBlock()
+        brand.text = "ARROW"
+        brand.fontSize = 13
+        brand.fontWeight = FontWeight(weight: 700)
+        brand.horizontalAlignment = .right
+        card.children.append(brand)
+        let holder = TextBlock()
+        holder.text = name
+        holder.fontSize = 24
+        holder.fontWeight = FontWeight(weight: 600)
+        holder.verticalAlignment = .center
+        holder.textTrimming = .characterEllipsis
+        try? Grid.setRow(holder, 1)
+        card.children.append(holder)
+        let footer = Grid()
+        for width in [GridLength.star, .auto] {
+            let column = ColumnDefinition()
+            column.width = width
+            footer.columnDefinitions.append(column)
+        }
+        let title = TextBlock()
+        title.text = rank
+        title.fontSize = 12
+        title.fontWeight = FontWeight(weight: 700)
+        footer.children.append(title)
+        let since = TextBlock()
+        since.text = created.map { formatter.string(from: $0) } ?? ""
+        since.fontSize = 12
+        try? Grid.setColumn(since, 1)
+        footer.children.append(since)
+        try? Grid.setRow(footer, 2)
+        card.children.append(footer)
+        try? AutomationProperties.setName(card, "Arrow Card")
+        return card
     }
 
     // MARK: - Actions

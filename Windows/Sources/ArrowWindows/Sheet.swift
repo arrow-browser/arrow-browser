@@ -114,7 +114,15 @@ final class Sheet {
         popup.verticalOffset = max((window.content.actualHeight - height) / 2, 24)
         popup.isOpen = true
         Sheet.open.append(self)
-        if let control { _ = try? control.focus(.programmatic) }
+        guard let control else { return }
+        _ = try? control.focus(.programmatic)
+        // A menu that opened the sheet gives the keyboard back as it closes,
+        // after this: take it again.
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(150))
+            guard let self, popup.isOpen else { return }
+            _ = try? control.focus(.programmatic)
+        }
     }
 
     func close() {

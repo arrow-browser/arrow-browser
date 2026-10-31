@@ -183,6 +183,9 @@ enum Glyph {
     static let speaker = "\u{E767}"
     static let mute = "\u{E74F}"
     static let download = "\u{E896}"
+    static let play = "\u{E768}"
+    static let pause = "\u{E769}"
+    static let live = "\u{E945}"
 
     static let font = FontFamily("Segoe Fluent Icons")
 

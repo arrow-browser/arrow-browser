@@ -164,7 +164,9 @@ Done when a window with one CEF browser runs on Windows and Linux.
     package installed by its redistributable, through the SDK's
     bootstrapper.
 - Rebuild the UI of the macOS app as Arc's on Windows (done): sidebar,
-  spaces, command bar, split view, Peek, Little Arrow, archive, settings.
+  spaces, command bar, split view, Peek, Little Arrow, archive, settings,
+  Live Folders, media controls, translation, the share sheet, registration
+  as a browser.
 - Command bar: open Windows file paths (`C:\…`, `\\server\share`) typed in
   it, as `URLInput` does for `/…` and `~/…`.
 - Build with SwiftPM (CMake where SwiftPM falls short), ship an installer.

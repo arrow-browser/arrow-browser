@@ -161,15 +161,16 @@ extension BrowserWindow {
 
     func translatePage() {
         guard let tab = selectedTab else { return }
-        let language = Locale.preferredLanguages.first.map { String($0.prefix(2)) } ?? "en"
-        guard let translated = PageTranslation.url(for: tab.url, to: language) else { return }
-        tab.load(translated)
+        translate(tab, to: Self.userLanguage)
     }
 
     // MARK: - App
 
+    /// Registers Arrow with Windows, then opens its Default apps page, where
+    /// the user makes it the default browser.
     func openDefaultBrowserSettings() {
-        openExternal("ms-settings:defaultapps")
+        DefaultBrowser.register()
+        openExternal(DefaultBrowser.settingsPage)
     }
 
     func visitHelpCenter() {

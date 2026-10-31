@@ -8,15 +8,20 @@ Its interface is Arc's on Windows, in look and in function:
 
 - The toolbar in the title bar: the app menu under the logo (Arc's, with its
   Spaces, Tabs, Extensions, Developer and Help menus), the sidebar toggle,
-  navigation, the address with Copy Link and the Site Control Center,
-  Translate and Split View Options.
-- The sidebar: the favorites, the space's pinned tabs and folders, the
-  "Clear" divider, New Tab, today's tabs; Arc's context menus (tab,
-  favorite, folder, space), renaming in place, dragging to reorder, pin or
-  file away; the archive, the space switcher and the Add menu at the bottom.
+  navigation, the address with Copy Link and the Site Control Center (its
+  Share URL opens Windows' share sheet), Translate (in the page, into
+  Windows' display language) and Split View Options.
+- The sidebar: the favorites, the space's pinned tabs and folders (GitHub
+  Live Folders among them), the "Clear" divider, New Tab, today's tabs;
+  Arc's context menus (tab, favorite, folder, space), renaming in place,
+  dragging to reorder, pin or file away; the media controls of a tab
+  playing out of sight; the archive, the space switcher and the Add menu at
+  the bottom.
 - The command bar (Ctrl+T, Ctrl+L), find in page (Ctrl+F), downloads, split
   views of up to four panes, Peek for links leaving pinned tabs, Little Arrow for links
-  from other apps, new and incognito windows, and the settings window.
+  from other apps, new and incognito windows, and the settings window (with
+  the Arrow Card). Set Arrow as Default Browser registers Arrow with Windows
+  and opens its Default apps page.
 - The space's theme over the Mica backdrop, titles in a dark shade of its
   hue; dialogs for creating spaces, their icon and theme color.
 
@@ -72,7 +77,7 @@ powershell -File stage.ps1 $bin               # Arrow.exe and its runtime, next 
 
 | Path | Contents |
 |---|---|
-| `Sources/ArrowWindows` | The app: entry points, the browser window (its actions, spaces, tools and Peek in extensions), its sidebar, command bar, find bar, menus and sheets, the settings and Little Arrow windows, the commands and their keyboard shortcuts (`CommandCatalog`), the space theme's brushes, platform services (`WindowsPlatform`, the Credential Manager), CEF's message pump |
+| `Sources/ArrowWindows` | The app: entry points, the browser window (its actions, spaces, tools and Peek in extensions), its sidebar, command bar, find bar, menus and sheets, the settings and Little Arrow windows, the commands and their keyboard shortcuts (`CommandCatalog`), the space theme's brushes, platform services (`WindowsPlatform`, the Credential Manager, `ShareSheet`, `DefaultBrowser`), `LiveFolders`, CEF's message pump |
 | `Tests/ArrowWindowsTests` | Tests of the Windows-specific code |
 | `Sources/WinUI/Application` | `XamlApplication`, a WinUI application written in Swift (adapted from swift-winui) |
 | `Sources/CWinRT`, `Sources/*/Generated` | Generated projections |

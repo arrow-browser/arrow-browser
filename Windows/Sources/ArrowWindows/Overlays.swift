@@ -109,7 +109,7 @@ extension BrowserWindow {
         share.horizontalAlignment = .stretch
         share.click.addHandler { [weak self] _, _ in
             try? flyout.hide()
-            self?.copyURL()
+            self?.sharePage()
         }
         content.children.append(share)
         content.children.append(separator())

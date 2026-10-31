@@ -53,6 +53,8 @@ final class BrowserWindow {
     private var commandBar: CommandBar?
     private var findBar: FindBar?
     private var noticedDownloadID: UInt32?
+    /// Tabs translated in place (Translate), with the page translated.
+    var translatedTabs: [Foundation.UUID: String] = [:]
     private var overlays: PageOverlays?
     /// Where the next split pane goes (Split View Options).
     var splitPlacement: (axis: SplitAxis, before: Bool) = (.horizontal, false)
@@ -111,6 +113,19 @@ final class BrowserWindow {
         observe { [weak self] in self?.updatePeek() }
         observe { [weak self] in self?.noticeDownload() }
         overlays = PageOverlays(window: self)
+    }
+
+    /// Windows' share sheet for the page, or its address copied where the
+    /// sheet cannot open.
+    func sharePage() {
+        guard let tab = selectedTab, !tab.url.isEmpty else { return }
+        if !ShareSheet.share(title: tab.displayTitle, url: tab.url, from: handle) {
+            copyURL()
+        }
+    }
+
+    func bringToFront() {
+        try? window.activate()
     }
 
     func applyBackdrop() {
@@ -604,7 +619,10 @@ final class BrowserWindow {
             guard let self else { return }
             showSiteControls(under: siteControlsButton)
         }
-        translateButton.click.addHandler { [weak self] _, _ in self?.translatePage() }
+        translateButton.click.addHandler { [weak self] _, _ in
+            guard let self else { return }
+            showTranslate(under: translateButton)
+        }
         splitButton.click.addHandler { [weak self] _, _ in
             guard let self else { return }
             let menu = splitViewMenu()

@@ -187,6 +187,58 @@ extension BrowserWindow {
 
     // MARK: - Folders
 
+    /// Arc's Live Folders ▸ GitHub: a pinned folder of a user's or a
+    /// repository's open pull requests or issues.
+    func newLiveFolder() {
+        let query = TextBox()
+        query.header = "GitHub user or repository"
+        query.placeholderText = "octocat or apple/swift"
+        var kind = LiveFolders.Source.Kind.pullRequests
+        let kinds = StackPanel()
+        kinds.orientation = .horizontal
+        kinds.spacing = 16
+        for (title, value) in [("Pull Requests", LiveFolders.Source.Kind.pullRequests), ("Issues", .issues)] {
+            let radio = RadioButton()
+            radio.content = title
+            radio.groupName = "liveFolderKind"
+            radio.isChecked = value == kind
+            radio.checked.addHandler { _, _ in kind = value }
+            kinds.children.append(radio)
+        }
+        let content = StackPanel()
+        content.spacing = 12
+        content.children.append(query)
+        content.children.append(kinds)
+        let spaceID = state.selectedSpaceID
+        Sheet(window: self, title: "New GitHub Live Folder", content: content, actions: [
+            Sheet.Action(title: "Create Folder", isPrimary: true) {
+                let text = query.text.trimmingCharacters(in: .whitespaces)
+                guard !text.isEmpty else { return false }
+                _ = LiveFolders.shared.add(LiveFolders.Source(query: text, kind: kind), in: spaceID)
+                return true
+            },
+            Sheet.Action(title: "Cancel"),
+        ]).show(focusing: query)
+    }
+
+    /// A new profile, used by `spaceID` (Set Profile ▸ New Profile…).
+    func newProfile(for spaceID: Foundation.UUID) {
+        let name = TextBox()
+        name.placeholderText = "Profile name"
+        Sheet(window: self, title: "New Profile", content: name, actions: [
+            Sheet.Action(title: "Create Profile", isPrimary: true) { [weak self] in
+                let title = name.text.trimmingCharacters(in: .whitespaces)
+                guard let self, !title.isEmpty else { return false }
+                store.update { browser in
+                    let profile = browser.createProfile(name: title)
+                    browser.updateSpace(spaceID) { $0.profileID = profile.id }
+                }
+                return true
+            },
+            Sheet.Action(title: "Cancel"),
+        ]).show(focusing: name)
+    }
+
     /// A folder inside `parentID`, renamed at once.
     func newFolder(in parentID: Foundation.UUID) {
         let spaceID = state.selectedSpaceID
