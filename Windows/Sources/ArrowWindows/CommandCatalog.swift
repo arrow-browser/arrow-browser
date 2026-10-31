@@ -67,12 +67,15 @@ enum CommandCatalog {
         shortcut([Shortcut.commandBar]) { $0.openCommandBar() },
         shortcut([Shortcut.back]) { $0.selectedTab?.goBack() },
         shortcut([Shortcut.forward]) { $0.selectedTab?.goForward() },
-        shortcut([Shortcut.newWindow]) { _ in ArrowApp.openWindow() },
-        shortcut([Shortcut.newIncognitoWindow]) { _ in ArrowApp.openWindow(incognito: true) },
         shortcut([Shortcut.find]) { $0.showFindBar() },
         // Arc's commands on Windows: its menus' and its tab's actions, with
         // the keywords Arc finds them by.
         entry("close", "Close", [], "xmark", [Shortcut.close]) { $0.close() },
+        entry("new-window", "New Window", ["window"], "macwindow", [Shortcut.newWindow]) { _ in ArrowApp.openWindow() },
+        entry("new-blank-window", "New Blank Window", ["window"], "macwindow", []) { _ in ArrowApp.openWindow() },
+        entry("incognito", "New Incognito Window", ["window"], "theatermasks", [Shortcut.newIncognitoWindow]) { _ in
+            ArrowApp.openWindow(incognito: true)
+        },
         entry("close-tab", "Close Current Tab", [], "xmark", [Shortcut.closeTab]) { $0.closeSelectedTab() },
         entry("reopen", "Reopen Last Closed Tab", ["closed tab"], "arrow.uturn.backward", [Shortcut.reopenTab]) {
             $0.reopenLastClosedTab()
@@ -147,6 +150,11 @@ enum CommandCatalog {
         entry("split", "New Split View", ["split view"], "rectangle.split.2x1", [Shortcut.newSplitView]) {
             $0.addSplitView()
         },
+        entry("new-space", "New Space", [], "plus.square.on.square", []) { $0.newSpace() },
+        entry("split-right", "Add Right Split", [], "rectangle.split.2x1", []) { $0.addSplitView() },
+        entry("split-left", "Add Left Split", [], "rectangle.split.2x1", []) { $0.addSplitView(before: true) },
+        entry("split-top", "Add Top Split", [], "rectangle.split.2x1", []) { $0.addSplitView(axis: .vertical, before: true) },
+        entry("split-bottom", "Add Bottom Split", [], "rectangle.split.2x1", []) { $0.addSplitView(axis: .vertical) },
         entry("updates", "Check for Updates…", ["updates"], "arrow.down.circle", []) { $0.checkForUpdates() },
         entry("view-source", "View Source", [], "doc.plaintext", [Shortcut.viewSource]) { $0.viewSource() },
         entry("archive", "View Archive", [], "archivebox", []) { $0.showArchive() },
@@ -177,13 +185,12 @@ enum CommandCatalog {
         spaces.map { CommandBarCommand(id: "space-\($0.id.uuidString)", title: $0.title, symbol: "square.stack") }
     }
 
-    /// Arc's "Open" command of each pinned folder, found by the titles of
-    /// its pages too.
+    /// Arc's "Open" command of each pinned folder, which "find" finds too.
     static func folderCommands(_ nodes: [SidebarNode]) -> [CommandBarCommand] {
         nodes.compactMap { node in
             guard case let .folder(folder) = node else { return nil }
             return CommandBarCommand(id: "folder-\(folder.id.uuidString)", title: "Open \(folder.title)",
-                                     keywords: folder.children.allTabs.map(\.displayTitle), symbol: "folder")
+                                     keywords: ["find"], symbol: "folder")
         }
     }
 

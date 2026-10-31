@@ -32,12 +32,15 @@ struct CommandCatalogTests {
         #expect(titles.isSuperset(of: ["Copy Current URL", "Duplicate Current Tab", "Reload Current Tab",
                                        "Force Reload Current Tab", "Enter Fullscreen", "Rename Current Tab…"]))
         #expect(!titles.contains("Translate Page"))
-        #expect(!titles.contains("New Window"))
+        #expect(titles.isSuperset(of: ["New Window", "New Blank Window", "New Incognito Window"]))
         // Every one of Arc's words names a command.
         #expect(CommandBarRanking.triggers.values.allSatisfy { id in CommandCatalog.commands.contains { $0.id == id } })
         // Ctrl+F and Ctrl+N stay shortcuts.
         #expect(CommandCatalog.handles(Shortcut.find))
         #expect(CommandCatalog.handles(Shortcut.newWindow))
+        let window = CommandCatalog.commands.filter { CommandBarRanking.matches($0, "window") }.map(\.title)
+        #expect(window == ["New Window", "New Blank Window", "New Incognito Window"])
+        #expect(!CommandCatalog.commands.contains { CommandBarRanking.matches($0, "incognito") })
     }
 
     @Test func ranksAsArcOnWindows() {
@@ -78,6 +81,11 @@ struct CommandCatalogTests {
         let splitView = CommandBarItem(id: "tab-split", kind: .switchToTab(UUID()), title: "Split View")
         let viewSuggestion = CommandBarItem(id: "suggestion-views", kind: .search(query: "views"), title: "views")
         #expect(CommandBarRanking.arrange([splitView, viewSuggestion], "view").map(\.id) == ["suggestion-views", "tab-split"])
+        #expect(CommandBarRanking.arrange([splitView, viewSuggestion], "split").first?.id == "tab-split")
+        let pinned = CommandBarItem(id: "tab-pinned", kind: .switchToTab(UUID()), title: "Pinned Tabs")
+        let pinSuggestion = CommandBarItem(id: "suggestion-pinterest", kind: .search(query: "pin up"), title: "pin up")
+        #expect(CommandBarRanking.arrange([pinned, pinSuggestion], "pin").map(\.id).filter { !$0.hasPrefix("site-") }
+            == ["suggestion-pinterest", "tab-pinned"])
         // The row chosen for a query comes first the next time.
         let query = "arrow-test-\(UUID().uuidString)"
         let search = CommandBarItem(id: "search", kind: .search(query: query), title: query)

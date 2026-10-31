@@ -17,6 +17,10 @@ enum CommandBarRanking {
     }
 
     static let maximumRows = 5
+    /// The share of a page's title what was typed covers for the page to
+    /// come before the suggestions (Arc: "split" in "Split View" does, "pin"
+    /// in "Pinned Tabs" does not).
+    static let minimumTitleShare = 0.4
 
     /// Words for which Arc lists a command before the search, as observed in
     /// Arc 1.130 for Windows (where it had no usage of its own).
@@ -161,10 +165,14 @@ enum CommandBarRanking {
         var history = items.filter { $0.id.hasPrefix("history-") }
         let suggestions = items.filter { $0.id.hasPrefix("suggestion") || $0.id == "chatgpt" }
         // A page found in the middle of its title or address ("view" in
-        // "Split View") comes after the suggestions, as Arc scores the match
-        // by its position.
+        // "Split View"), or covering little of its title ("pin" in "Pinned
+        // Tabs"), comes after the suggestions: Arc scores a match by its
+        // position and its share of the title ("split" in "Split View" is
+        // half of it, and comes first).
         func startsWithQuery(_ item: CommandBarItem) -> Bool {
-            item.title.lowercased().hasPrefix(query) || item.url.flatMap { URLDisplay.host(of: $0) }?.hasPrefix(query) == true
+            let title = item.title.lowercased()
+            return title.hasPrefix(query) && Double(query.count) >= Double(title.count) * minimumTitleShare
+                || item.url.flatMap { URLDisplay.host(of: $0) }?.hasPrefix(query) == true
         }
         let laterTabs = tabs.filter { !startsWithQuery($0) }
         tabs = tabs.filter(startsWithQuery)
