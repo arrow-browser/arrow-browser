@@ -110,6 +110,11 @@ final class ArrowApp {
         current?.windows.contains { $0 !== window && $0.store === window.store } ?? false
     }
 
+    /// Gives every window the backdrop of the settings.
+    static func applyBackdrop() {
+        current?.windows.forEach { $0.applyBackdrop() }
+    }
+
     /// The store of the app's windows (not of incognito ones).
     static var store: BrowserStore? { current?.store }
 

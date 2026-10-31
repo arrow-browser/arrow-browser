@@ -99,6 +99,12 @@ final class SettingsWindow {
 
         // General
         heading("General", .general)
+        card("Window backdrop", "Mica to match Arrow's background to your desktop, or Acrylic for a transparent blur effect.",
+             trailing: choice(WindowBackdrop.allCases.map(\.rawValue),
+                              selected: WindowBackdrop.allCases.firstIndex(of: WindowBackdrop.current) ?? 0) { index in
+            WindowBackdrop.current = WindowBackdrop.allCases[index]
+            ArrowApp.applyBackdrop()
+        })
         card("Search engine", "Used by the Command Bar.", trailing: choice(SearchEngine.allCases.map(\.name),
              selected: SearchEngine.allCases.firstIndex(of: settings.searchEngine) ?? 0) { [weak self] index in
             self?.store.settings.searchEngine = SearchEngine.allCases[index]

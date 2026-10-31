@@ -96,6 +96,36 @@ final class ThemeBrushes {
     }
 }
 
+/// Settings ▸ General ▸ Window backdrop, Arc's: Mica matches the window to
+/// the desktop, Acrylic blurs what is behind it. A Windows setting, kept in
+/// the app's defaults.
+enum WindowBackdrop: String, CaseIterable {
+    case mica = "Mica"
+    case acrylic = "Acrylic"
+
+    private static let key = "WindowBackdrop"
+
+    static var current: WindowBackdrop {
+        get { UserDefaults.standard.string(forKey: key).flatMap(WindowBackdrop.init(rawValue:)) ?? .mica }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: key)
+            UserDefaults.standard.synchronize()
+        }
+    }
+
+    @MainActor
+    func make() -> SystemBackdrop {
+        switch self {
+        case .mica:
+            let mica = MicaBackdrop()
+            mica.kind = .baseAlt
+            return mica
+        case .acrylic:
+            return DesktopAcrylicBackdrop()
+        }
+    }
+}
+
 extension Color {
     init(_ color: RGBColor) {
         func byte(_ value: Double) -> UInt8 { UInt8((min(max(value, 0), 1) * 255).rounded()) }

@@ -90,9 +90,7 @@ final class BrowserWindow {
         handle = try window.handle()
         window.title = "Arrow"
         // Arc's backdrop on Windows: the desktop shows through the theme.
-        let mica = MicaBackdrop()
-        mica.kind = .baseAlt
-        window.systemBackdrop = mica
+        window.systemBackdrop = WindowBackdrop.current.make()
         let titleBar = window.appWindow.titleBar!
         titleBar.extendsContentIntoTitleBar = true
         nonClientInput = try InputNonClientPointerSource.getForWindowId(window.appWindow.id)
@@ -111,6 +109,10 @@ final class BrowserWindow {
         observe { [weak self] in self?.updateSelectedTab() }
         observe { [weak self] in self?.updatePeek() }
         overlays = PageOverlays(window: self)
+    }
+
+    func applyBackdrop() {
+        window.systemBackdrop = WindowBackdrop.current.make()
     }
 
     /// The window's content, which popups and sheets open over.
