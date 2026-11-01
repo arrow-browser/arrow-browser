@@ -150,6 +150,7 @@ final class Sidebar {
         header.margin = Thickness(left: 9, top: 10, right: 0, bottom: 8)
         // Hit-testable where empty, for its menu.
         header.background = brushes.clear
+        if state.renamingNodeID == space.id { return renameHeader(for: space) }
         // Arc shows the space's icon, emoji or symbol, before its name; none
         // for a space without one.
         switch space.icon {
@@ -170,13 +171,6 @@ final class Sidebar {
         case nil:
             break
         }
-        if state.renamingNodeID == space.id {
-            header.children.append(renameField(space.title, width: 150) { [weak self] title in
-                guard !title.isEmpty else { return }
-                self?.store.update { $0.updateSpace(space.id) { $0.title = title } }
-            })
-            return header
-        }
         let title = TextBlock()
         title.text = space.title
         title.fontSize = 12
@@ -188,6 +182,35 @@ final class Sidebar {
         // Dropped on the space's name, a node is pinned first.
         makeDropTarget(header) { SidebarLocation(spaceID: space.id, section: .pinned, index: 0) }
         header.setContextMenu { [weak self] in self?.spaceMenu() }
+        return header
+    }
+
+    /// The space's name being renamed, as Arc's: in place of the icon and
+    /// the name, in the name's font, with "Done" at the right.
+    private func renameHeader(for space: Space) -> UIElement {
+        let header = Grid()
+        header.margin = Thickness(left: 10, top: 8, right: 1, bottom: 6)
+        for width in [GridLength.star, .auto] {
+            let column = ColumnDefinition()
+            column.width = width
+            header.columnDefinitions.append(column)
+        }
+        let done = TextBlock()
+        done.text = "Done"
+        done.fontSize = 12
+        done.foreground = brushes.subtitle
+        done.verticalAlignment = .center
+        try? Grid.setColumn(done, 1)
+        let field = renameField(space.title, width: nil, done: done) { [weak self] title in
+            guard !title.isEmpty else { return }
+            self?.store.update { $0.updateSpace(space.id) { $0.title = title } }
+        }
+        field.fontSize = 12
+        field.fontWeight = FontWeight(weight: 600)
+        field.padding = Thickness()
+        field.horizontalAlignment = .left
+        header.children.append(field)
+        header.children.append(done)
         return header
     }
 
@@ -299,8 +322,9 @@ final class Sidebar {
                      renaming nodeID: Foundation.UUID? = nil, rename: ((String) -> Void)? = nil,
                      action: @escaping () -> Void, close: (() -> Void)?, audio: WebTab? = nil) -> Button {
         icon.width = 16
+        // Arc's: the title 12 pixels after the icon, up to 10 pixels from the
+        // row's edge (12 more for a folder's), the buttons 4 pixels after it.
         let content = Grid()
-        content.columnSpacing = 12
         for width in [GridLength.auto, .star, .auto, .auto] {
             let column = ColumnDefinition()
             column.width = width
@@ -309,6 +333,8 @@ final class Sidebar {
         content.children.append(icon)
         if let nodeID, let rename, state.renamingNodeID == nodeID {
             let field = renameField(title, width: nil, commit: rename)
+            // The name stays where it was: the field's padding goes before it.
+            field.margin = Thickness(left: 8, top: 0, right: 0, bottom: 0)
             try? Grid.setColumn(field, 1)
             content.children.append(field)
         } else {
@@ -317,6 +343,7 @@ final class Sidebar {
             label.fontSize = 14
             label.textTrimming = .characterEllipsis
             label.verticalAlignment = .center
+            label.margin = Thickness(left: 12, top: 0, right: isBold ? 12 : 0, bottom: 0)
             if isBold { label.fontWeight = FontWeight(weight: 600) }
             try? Grid.setColumn(label, 1)
             content.children.append(label)
@@ -325,7 +352,7 @@ final class Sidebar {
         let row = Button()
         row.content = content
         row.height = 36
-        row.padding = Thickness(left: 9 + 14 * Double(depth), top: 0, right: 4, bottom: 0)
+        row.padding = Thickness(left: 9 + 14 * Double(depth), top: 0, right: 10, bottom: 0)
         row.horizontalAlignment = .stretch
         row.horizontalContentAlignment = .stretch
         row.cornerRadius = CornerRadius(8)
@@ -347,6 +374,7 @@ final class Sidebar {
             speaker.height = 24
             speaker.padding = Thickness()
             speaker.cornerRadius = CornerRadius(6)
+            speaker.margin = Thickness(left: 4, top: 0, right: 0, bottom: 0)
             try? AutomationProperties.setName(speaker, audio.isMuted ? "Unmute" : "Mute")
             try? Grid.setColumn(speaker, 2)
             content.children.append(speaker)
@@ -355,11 +383,12 @@ final class Sidebar {
         }
         if let close {
             let closeButton = Button()
-            closeButton.content = Glyph.view(Glyph.close, size: 10)
+            closeButton.content = Glyph.view(Glyph.close, size: 16)
             closeButton.width = 24
             closeButton.height = 24
             closeButton.padding = Thickness()
             closeButton.cornerRadius = CornerRadius(6)
+            closeButton.margin = Thickness(left: 4, top: 0, right: 0, bottom: 0)
             try? AutomationProperties.setName(closeButton, "Close Tab")
             try? Grid.setColumn(closeButton, 3)
             content.children.append(closeButton)
@@ -367,14 +396,19 @@ final class Sidebar {
             // Buttons handle their own pointer events: the row's content
             // reports the pointer, hit-testable where empty.
             content.background = brushes.clear
-            Self.showOnHover(closeButton, in: content)
+            // Out of the way until then: the title takes its place.
+            Self.showOnHover(closeButton, in: content) { shown in
+                closeButton.visibility = shown ? .visible : .collapsed
+            }
         }
         return row
     }
 
-    /// The field of a row being renamed: Enter or a click elsewhere keeps
-    /// the new name, Escape the old one.
-    private func renameField(_ text: String, width: Double?, commit: @escaping (String) -> Void) -> TextBox {
+    /// The field of a row being renamed: Enter, `done` or a click elsewhere
+    /// keeps the new name, Escape the old one. Arc's has no border, fill or
+    /// clear button: the name looks edited in place.
+    private func renameField(_ text: String, width: Double?, done: UIElement? = nil,
+                             commit: @escaping (String) -> Void) -> TextBox {
         let field = TextBox()
         field.text = text
         field.fontSize = 14
@@ -382,6 +416,16 @@ final class Sidebar {
         field.padding = Thickness(left: 4, top: 2, right: 4, bottom: 2)
         field.verticalAlignment = .center
         if let width { field.width = width }
+        field.borderThickness = Thickness()
+        let keys: [(String, SolidColorBrush)] = [
+            ("Background", brushes.clear), ("BorderBrush", brushes.clear), ("Foreground", brushes.title),
+            ("ButtonForeground", brushes.clear), ("ButtonBackground", brushes.clear),
+        ]
+        for (key, brush) in keys {
+            for state in ["", "PointerOver", "Focused", "Pressed"] {
+                _ = field.resources.insert("TextControl\(key)\(state)", brush)
+            }
+        }
         var isDone = false
         // The field itself, not weakly: its Swift object would go while WinUI
         // shows it.
@@ -405,6 +449,7 @@ final class Sidebar {
             }
         }
         field.lostFocus.addHandler { _, _ in finish(true) }
+        done?.tapped.addHandler { _, _ in finish(true) }
         field.loaded.addHandler { _, _ in
             _ = try? field.focus(.programmatic)
             try? field.selectAll()
