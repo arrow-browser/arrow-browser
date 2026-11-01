@@ -74,13 +74,24 @@ enum Menu {
     /// Opens `menu` under `button`, aligned to its left edge.
     static func show(_ menu: FlyoutBase, under button: FrameworkElement) {
         menu.placement = .bottomEdgeAlignedLeft
-        try? menu.showAt(button)
+        open(menu, at: button)
     }
 
     /// Opens `menu` above `button`, centered (Translate's Options).
     static func show(_ menu: FlyoutBase, above button: FrameworkElement) {
         menu.placement = .top
-        try? menu.showAt(button)
+        open(menu, at: button)
+    }
+
+    /// Opens `flyout` at `anchor` once the click that asked for it is done.
+    /// Clicked while the page has the keyboard, a flyout opened at once
+    /// closes before showing: WinUI then moves the keyboard to the button,
+    /// which the flyout takes for a click elsewhere.
+    static func open(_ flyout: FlyoutBase, at anchor: FrameworkElement) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(60))
+            try? flyout.showAt(anchor)
+        }
     }
 
     /// Opens `menu` at the pointer's position in `element` (a right click).

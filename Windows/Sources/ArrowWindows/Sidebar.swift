@@ -494,7 +494,7 @@ final class Sidebar {
             guard let self else { return }
             let menu = window.addMenu()
             menu.placement = .top
-            try? menu.showAt(addButton)
+            Menu.open(menu, at: addButton)
         }
     }
 

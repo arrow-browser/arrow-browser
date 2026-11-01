@@ -643,16 +643,10 @@ final class BrowserWindow {
             showTranslate(under: translateButton)
         }
         splitButton.click.addHandler { [weak self] _, _ in
-            // Once WinUI has moved the keyboard from the page to the toolbar,
-            // after the click: the menu, over the page, opened at once would
-            // take that for a click elsewhere and close before showing.
-            Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .milliseconds(60))
-                guard let self else { return }
-                let menu = splitViewMenu()
-                menu.placement = .bottomEdgeAlignedRight
-                try? menu.showAt(splitButton)
-            }
+            guard let self else { return }
+            let menu = splitViewMenu()
+            menu.placement = .bottomEdgeAlignedRight
+            Menu.open(menu, at: splitButton)
         }
         backButton.click.addHandler { [weak self] _, _ in self?.selectedTab?.goBack() }
         forwardButton.click.addHandler { [weak self] _, _ in self?.selectedTab?.goForward() }

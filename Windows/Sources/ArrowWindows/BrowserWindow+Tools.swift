@@ -56,7 +56,7 @@ extension BrowserWindow {
             content.children.append(scroller)
         }
         flyout.content = content
-        try? flyout.showAt(sidebar.archiveAnchor)
+        Menu.open(flyout, at: sidebar.archiveAnchor)
     }
 
     private func archiveRow(_ entry: ArchivedTab, open: @escaping () -> Void) -> Button {

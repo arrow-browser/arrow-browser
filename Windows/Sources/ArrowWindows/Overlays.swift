@@ -215,7 +215,7 @@ extension BrowserWindow {
         content.children.append(footer)
 
         flyout.content = content
-        try? flyout.showAt(anchor)
+        Menu.open(flyout, at: anchor)
     }
 
     private func siteMenu(for tab: WebTab) -> MenuFlyout {

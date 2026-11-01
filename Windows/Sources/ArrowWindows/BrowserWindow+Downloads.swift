@@ -48,7 +48,7 @@ extension BrowserWindow {
             content.children.append(empty)
         }
         flyout.content = content
-        try? flyout.showAt(anchor)
+        Menu.open(flyout, at: anchor)
     }
 
     private func downloadRow(_ item: DownloadManager.Item, flyout: Flyout) -> UIElement {
