@@ -51,7 +51,8 @@ final class SettingsWindow {
         }
         // Arc's spacing: 16 pixels before a heading, 8 after it (4 before
         // its description, 16 after that), 4 between cards.
-        sections.padding = Thickness(left: 36, top: 36, right: 36, bottom: 36)
+        // The content starts a pixel lower than Arc's: 35 lands on its 36.
+        sections.padding = Thickness(left: 36, top: 35, right: 36, bottom: 36)
         sections.spacing = 4
         sections.maxWidth = 700
         scroller.content = sections
@@ -149,8 +150,6 @@ final class SettingsWindow {
                               selected: settings.externalLinks == .littleArrow ? 0 : 1) { [weak self] index in
             self?.store.settings.externalLinks = index == 0 ? .littleArrow : .activeSpace
         })
-        card("Block ads and trackers", nil,
-             trailing: toggle(settings.adBlockerEnabled) { [weak self] in self?.store.settings.adBlockerEnabled = $0 })
         card("Sound effects", nil,
              trailing: toggle(settings.soundEffects) { [weak self] in self?.store.settings.soundEffects = $0 })
 
@@ -226,17 +225,16 @@ final class SettingsWindow {
             header.columnDefinitions.append(column)
         }
         // The arrow sits in the margin, the title where headings start.
-        header.margin = Thickness(left: -28, top: 0, right: 0, bottom: 8)
+        header.margin = Thickness(left: -28, top: 0, right: 0, bottom: 7)
         let back = iconButton(Glyph.back, name: "Back") { [weak self] in self?.showMainPage() }
         back.width = 24
         back.height = 24
         back.verticalAlignment = .top
-        back.margin = Thickness(left: 0, top: 3, right: 4, bottom: 0)
+        back.margin = Thickness(left: 0, top: 4, right: 4, bottom: 0)
         header.children.append(back)
         let path = StackPanel()
         path.orientation = .horizontal
         path.verticalAlignment = .top
-        path.margin = Thickness(left: 0, top: -1, right: 0, bottom: 0)
         let profiles = TextBlock()
         profiles.text = "Profiles"
         profiles.foreground = accentText
@@ -250,12 +248,15 @@ final class SettingsWindow {
         for text in [profiles, separator, name] {
             text.fontSize = 20
             text.fontWeight = FontWeight(weight: 600)
+            text.lineHeight = 28
             path.children.append(text)
         }
         try? Grid.setColumn(path, 1)
         header.children.append(path)
         let rename = button("Rename Profile") { [weak self] in self?.renameProfile(profile) }
         rename.minWidth = 151
+        rename.verticalAlignment = .top
+        rename.margin = Thickness(left: 0, top: 1, right: 0, bottom: 0)
         try? Grid.setColumn(rename, 3)
         header.children.append(rename)
         sections.children.append(header)
@@ -267,6 +268,11 @@ final class SettingsWindow {
         })
         card("Include search engine suggestions", nil,
              trailing: toggle(settings.searchSuggestions) { [weak self] in self?.store.settings.searchSuggestions = $0 })
+        let advanced = card("Advanced Search Settings", nil,
+                            trailing: iconButton(Glyph.openInNew, name: "Advanced Search Settings") { [weak self] in
+            self?.showSearchSettings()
+        })
+        advanced.tapped.addHandler { [weak self] _, _ in self?.showSearchSettings() }
 
         subheading("Related Settings")
         // Arc marks the default choice.
@@ -281,7 +287,7 @@ final class SettingsWindow {
             self?.store.settings.downloadLocation = locations[index]
         })
 
-        // Arc's links, those Arrow has on Windows, and Delete at the right.
+        // Arc's links, and Delete at the right.
         let footer = Grid()
         footer.margin = Thickness(left: 0, top: 24, right: 0, bottom: 0)
         for width in [GridLength.star, .auto] {
@@ -291,6 +297,9 @@ final class SettingsWindow {
         }
         let links = StackPanel()
         links.spacing = 8
+        links.children.append(link("Privacy and Security", glyph: Glyph.lock) { [weak self] in self?.showPrivacy() })
+        links.children.append(link("Passwords", glyph: Glyph.key) { [weak self] in self?.showPasswords() })
+        links.children.append(link("Credit Cards", glyph: Glyph.card) { [weak self] in self?.showCards() })
         links.children.append(link("Notifications", glyph: Glyph.bell) {
             _ = "ms-settings:notifications".withWideString { address in
                 "open".withWideString { verb in ShellExecuteW(nil, verb, address, nil, nil, SW_SHOWNORMAL) }
@@ -317,6 +326,7 @@ final class SettingsWindow {
         text.text = title
         text.fontSize = 14
         text.fontWeight = FontWeight(weight: 600)
+        text.lineHeight = 20
         text.margin = Thickness(left: 0, top: sections.children.size <= 1 ? 0 : 8, right: 0, bottom: 0)
         sections.children.append(text)
     }
@@ -369,6 +379,203 @@ final class SettingsWindow {
     private var accentText: Brush {
         (try? Application.current.resources.lookup("AccentTextFillColorPrimaryBrush") as? Brush)
             ?? SolidColorBrush(Color(RGBColor(hex: 0x003E92)))
+    }
+
+    /// A dialog over the settings window. Arc opens Chromium's settings
+    /// pages for these; Arrow's are its own.
+    private func showDialog(_ title: String, _ content: UIElement, primary: String? = nil, close: String = "Close",
+                            action: (() -> Void)? = nil) {
+        let dialog = ContentDialog()
+        dialog.xamlRoot = window.content.xamlRoot
+        dialog.title = title
+        dialog.content = content
+        if let primary {
+            dialog.primaryButtonText = primary
+            dialog.defaultButton = .primary
+        }
+        dialog.closeButtonText = close
+        dialog.requestedTheme = isDark ? .dark : .light
+        if let action { dialog.primaryButtonClick.addHandler { _, _ in action() } }
+        _ = try? dialog.showAsync()
+    }
+
+    /// A row of a dialog: a title (and a detail) and a control at the right.
+    private func row(_ title: String, _ detail: String? = nil, trailing: UIElement) -> Grid {
+        let row = Grid()
+        row.columnSpacing = 12
+        for width in [GridLength.star, .auto] {
+            let column = ColumnDefinition()
+            column.width = width
+            row.columnDefinitions.append(column)
+        }
+        let labels = StackPanel()
+        labels.verticalAlignment = .center
+        let text = TextBlock()
+        text.text = title
+        text.textTrimming = .characterEllipsis
+        labels.children.append(text)
+        if let detail {
+            let small = TextBlock()
+            small.text = detail
+            small.fontSize = 12
+            small.opacity = 0.7
+            labels.children.append(small)
+        }
+        row.children.append(labels)
+        if let element = trailing as? FrameworkElement { element.verticalAlignment = .center }
+        try? Grid.setColumn(trailing as? FrameworkElement, 1)
+        row.children.append(trailing)
+        return row
+    }
+
+    private func note(_ string: String) -> TextBlock {
+        let text = TextBlock()
+        text.text = string
+        text.fontSize = 12
+        text.opacity = 0.7
+        text.textWrapping = .wrap
+        return text
+    }
+
+    private func scrolling(_ list: UIElement, height: Double) -> ScrollViewer {
+        let scroller = ScrollViewer()
+        scroller.content = list
+        scroller.maxHeight = height
+        return scroller
+    }
+
+    /// Advanced Search Settings: the default engine and the site searches
+    /// of the command bar.
+    private func showSearchSettings() {
+        let content = StackPanel()
+        content.spacing = 12
+        content.children.append(row("Default search engine", trailing: choice(SearchEngine.allCases.map(\.name),
+            selected: SearchEngine.allCases.firstIndex(of: store.settings.searchEngine) ?? 0) { [weak self] index in
+            self?.store.settings.searchEngine = SearchEngine.allCases[index]
+        }))
+        content.children.append(note("Site search: type a site's name in the command bar, then press Tab."))
+        let list = StackPanel()
+        list.spacing = 6
+        for site in SiteSearch.builtIn + [.chatGPT] {
+            let keyword = TextBlock()
+            keyword.text = site.keyword
+            keyword.fontFamily = FontFamily("Cascadia Mono, Consolas")
+            keyword.opacity = 0.7
+            list.children.append(row(site.name, site.domain, trailing: keyword))
+        }
+        content.children.append(scrolling(list, height: 260))
+        showDialog("Search Settings", content)
+    }
+
+    /// Privacy and Security: ad and tracker blocking.
+    private func showPrivacy() {
+        let content = StackPanel()
+        content.spacing = 12
+        let rules = note("")
+        let update: () -> Void = { [weak self] in
+            guard let blocker = self?.store.adBlocker else { return }
+            rules.text = blocker.ruleCount > 0 ? "\(blocker.ruleCount.formatted()) filter rules" : ""
+        }
+        update()
+        content.children.append(row("Block ads and trackers", trailing: toggle(store.settings.adBlockerEnabled) { [weak self] in
+            self?.store.settings.adBlockerEnabled = $0
+        }))
+        let refresh = button("Update Filter Lists") { [weak self] in
+            Task {
+                await self?.store.adBlocker.refresh()
+                update()
+            }
+        }
+        content.children.append(row("Filter lists", nil, trailing: refresh))
+        content.children.append(rules)
+        showDialog("Privacy and Security", content)
+    }
+
+    /// Saved logins (the Credential Manager's), deleted here; passwords
+    /// are not shown (Windows Hello is not asked yet).
+    private func showPasswords() {
+        let credentials = store.platform.credentials
+        let content = StackPanel()
+        content.spacing = 12
+        content.children.append(row("Offer to save passwords", trailing: toggle(store.settings.offerToSavePasswords) { [weak self] in
+            self?.store.settings.offerToSavePasswords = $0
+        }))
+        let list = StackPanel()
+        list.spacing = 6
+        func reload() {
+            list.children.clear()
+            let logins = credentials.logins(for: nil)
+            if logins.isEmpty { list.children.append(note("Passwords you save in Arrow appear here.")) }
+            for login in logins {
+                let delete = iconButton(Glyph.delete, name: "Delete \(login.host)") {
+                    credentials.deletePassword(host: login.host, username: login.username)
+                    reload()
+                }
+                list.children.append(row(login.host, login.username.isEmpty ? "No username" : login.username,
+                                         trailing: delete))
+            }
+        }
+        reload()
+        content.children.append(scrolling(list, height: 240))
+        showDialog("Passwords", content)
+    }
+
+    /// Saved payment cards (the Credential Manager's): added and deleted
+    /// here; security codes are never saved.
+    private func showCards() {
+        let credentials = store.platform.credentials
+        let content = StackPanel()
+        content.spacing = 12
+        content.children.append(row("Save and fill payment cards", trailing: toggle(store.settings.autofillCards) { [weak self] in
+            self?.store.settings.autofillCards = $0
+        }))
+        let list = StackPanel()
+        list.spacing = 6
+        func reload() {
+            list.children.clear()
+            for card in credentials.cards() {
+                let delete = iconButton(Glyph.delete, name: "Delete \(card.label)") {
+                    credentials.delete(card)
+                    reload()
+                }
+                list.children.append(row(card.label, "\(card.expiry)  \(card.holder)", trailing: delete))
+            }
+        }
+        reload()
+        content.children.append(scrolling(list, height: 180))
+        let holder = TextBox()
+        holder.placeholderText = "Name on card"
+        let number = TextBox()
+        number.placeholderText = "Card number"
+        let expiry = TextBox()
+        expiry.placeholderText = "MM/YY"
+        expiry.width = 72
+        let add = button("Add") {
+            guard PaymentCard.isValidNumber(number.text), let date = PaymentCard.parseExpiry(expiry.text) else {
+                MessageBeep(UINT(MB_OK))
+                return
+            }
+            credentials.save(PaymentCard(holder: holder.text, number: number.text, expiryMonth: date.month,
+                                         expiryYear: date.year))
+            holder.text = ""
+            number.text = ""
+            expiry.text = ""
+            reload()
+        }
+        let form = Grid()
+        form.columnSpacing = 8
+        for width in [GridLength.star, .star, .auto, .auto] {
+            let column = ColumnDefinition()
+            column.width = width
+            form.columnDefinitions.append(column)
+        }
+        for (index, field) in [holder, number, expiry, add as FrameworkElement].enumerated() {
+            try? Grid.setColumn(field, Int32(index))
+            form.children.append(field)
+        }
+        content.children.append(form)
+        content.children.append(note("Security codes are never saved."))
+        showDialog("Credit Cards", content)
     }
 
     private func renameProfile(_ profile: Profile) {
@@ -557,6 +764,8 @@ final class SettingsWindow {
         text.text = title
         text.fontSize = 20
         text.fontWeight = FontWeight(weight: 600)
+        // Arc's headings are 28 pixels high.
+        text.lineHeight = 28
         text.margin = Thickness(left: 0, top: sections.children.size == 0 ? 0 : 12, right: 0, bottom: 4)
         sections.children.append(text)
         if let section { anchors[section] = text }
@@ -643,6 +852,9 @@ final class SettingsWindow {
         label.verticalAlignment = .center
         let toggle = ToggleSwitch()
         toggle.minWidth = 0
+        // WinUI's switch is 40 pixels high with its margins: Arc's cards
+        // keep 66.
+        toggle.margin = Thickness(left: 0, top: -2, right: 0, bottom: -2)
         // The switch's own text goes before it: none after.
         toggle.onContent = Border()
         toggle.offContent = Border()
