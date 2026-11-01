@@ -48,6 +48,8 @@ final class BrowserWindow {
     /// The address in short form (the host), which edits the address.
     private let addressButton = Button()
     private let addressText = TextBlock()
+    /// Copy Link, the address and the Site Control Center.
+    private let addressGroup = StackPanel()
     private let loadingBar = Border()
     private(set) var sidebar: Sidebar!
     private var commandBar: CommandBar?
@@ -323,7 +325,7 @@ final class BrowserWindow {
     }
 
     /// The toolbar, in the title bar: the sidebar toggle over the sidebar,
-    /// navigation over the content, the address in the middle of the window.
+    /// navigation over the content, the address in the middle of the content.
     private func layoutToolbar() throws {
         for (column, width) in [(toolbarLeadingColumn, GridLength.auto), (ColumnDefinition(), .auto),
                                 (ColumnDefinition(), .star), (ColumnDefinition(), .auto), (captionColumn, .auto)] {
@@ -353,6 +355,7 @@ final class BrowserWindow {
 
         addressText.fontSize = 13
         addressText.textTrimming = .characterEllipsis
+        addressText.horizontalAlignment = .center
         addressText.verticalAlignment = .center
         // Arc's loading line, under the address: as long as the page's load
         // has gone.
@@ -365,24 +368,30 @@ final class BrowserWindow {
         loadingBar.visibility = .collapsed
         let addressContent = Grid()
         addressContent.height = 28
+        // Arc's short addresses are centered in at least 100 pixels.
+        addressContent.minWidth = 100
         addressContent.children.append(addressText)
         addressContent.children.append(loadingBar)
         addressButton.content = addressContent
         addressButton.height = 28
         addressButton.maxWidth = 400
         addressButton.padding = Thickness(left: 8, top: 0, right: 8, bottom: 0)
+        addressButton.borderThickness = Thickness()
         addressButton.cornerRadius = CornerRadius(6)
         try AutomationProperties.setName(addressButton, "Address")
-        let address = StackPanel()
-        address.orientation = .horizontal
-        address.spacing = 2
-        address.horizontalAlignment = .center
-        address.verticalAlignment = .center
+        addressGroup.orientation = .horizontal
+        addressGroup.spacing = 2
+        addressGroup.horizontalAlignment = .center
+        addressGroup.verticalAlignment = .center
         for element: UIElement in [copyLinkButton, addressButton, siteControlsButton] {
-            address.children.append(element)
+            addressGroup.children.append(element)
         }
-        try Grid.setColumnSpan(address, 5)
-        toolbar.children.append(address)
+        // Arc centers it from the sidebar's edge (the Back button's, without
+        // the sidebar) to 6 pixels before the caption buttons (see
+        // updateSidebarVisibility).
+        try Grid.setColumn(addressGroup, 1)
+        try Grid.setColumnSpan(addressGroup, 3)
+        toolbar.children.append(addressGroup)
 
         let trailing = StackPanel()
         trailing.orientation = .horizontal
@@ -402,6 +411,7 @@ final class BrowserWindow {
         sidebar.element.visibility = isShown ? .visible : .collapsed
         toolbarLeadingColumn.width = state.isSidebarVisible ? .sidebar : .auto
         navigation.margin = Thickness(left: state.isSidebarVisible ? 1 : 8, top: 0, right: 0, bottom: 0)
+        addressGroup.margin = Thickness(left: state.isSidebarVisible ? 0 : 8, top: 0, right: 6, bottom: 0)
         titleRow.height = isFullscreen ? .zero : .titleBar
         toolbar.visibility = isFullscreen ? .collapsed : .visible
         browserArea.margin = isFullscreen ? Thickness()
