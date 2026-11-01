@@ -67,7 +67,10 @@ powershell -File stage.ps1 $bin               # Arrow.exe and its runtime, next 
   before using it. The NuGet packages it fetches (swift-winrt, the Windows App
   SDK) go in `.packages`.
 - `Arrow.exe` is CEF's bootstrap executable renamed: it loads `Arrow.dll` and
-  hands it the sandbox of Chromium's subprocesses. `stage.ps1 -Console`
+  hands it the sandbox of Chromium's subprocesses. `brand-exe.ps1`, run by
+  `stage.ps1`, gives it Arrow's name, version (`-Version`) and icon
+  (`Resources/Arrow.ico`, from the app's icon), which Windows shows in the
+  taskbar, Task Manager, the print dialog and Default apps. `stage.ps1 -Console`
   installs the console variant, which keeps the app's output:
   `Arrow.exe --smoke` loads the page, prints its title and quits (CI).
 - `swift test` runs once the app is staged (its tests load `libcef.dll`), in

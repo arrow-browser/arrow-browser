@@ -3,13 +3,14 @@
 # the CEF runtime, the Swift runtime, and the Windows App SDK's bootstrapper
 # and WinUI's resources.
 #
-#   powershell -File Windows\stage.ps1 [-Console] <directory of Arrow.dll>
+#   powershell -File Windows\stage.ps1 [-Console] [-Version 1.2.3] <directory of Arrow.dll>
 #
 # -Console installs bootstrapc.exe instead, which keeps a console (CI,
-# debugging).
+# debugging). -Version is Arrow.exe's version (0.0.0 by default).
 param(
     [Parameter(Mandatory)] [string] $Destination,
-    [switch] $Console
+    [switch] $Console,
+    [string] $Version = '0.0.0'
 )
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
@@ -26,6 +27,10 @@ foreach ($directory in 'Release', 'Resources') {
 }
 $bootstrap = if ($Console) { 'bootstrapc.exe' } else { 'bootstrap.exe' }
 Copy-Item (Join-Path $cef "Release\$bootstrap") (Join-Path $Destination 'Arrow.exe') -Force
+# Named Arrow, with its icon, where Windows shows the executable; the icon
+# also goes next to it, for the windows' own (taskbar, Alt+Tab).
+& (Join-Path $root 'brand-exe.ps1') -Executable (Join-Path $Destination 'Arrow.exe') -Version $Version
+Copy-Item (Join-Path $root 'Resources\Arrow.ico') $Destination -Force
 
 # Sandboxed processes do not look for DLLs in PATH: the Swift runtime goes
 # next to Arrow.exe, as an installer would put it.

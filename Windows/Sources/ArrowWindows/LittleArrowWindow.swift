@@ -43,6 +43,7 @@ final class LittleArrowWindow {
         window.appWindow.titleBar.extendsContentIntoTitleBar = true
         window.content = layout()
         try window.appWindow.resize(SizeInt32(width: 560, height: 760))
+        window.setArrowIcon()
         try window.activate()
         handleEvents()
         tab.host = self

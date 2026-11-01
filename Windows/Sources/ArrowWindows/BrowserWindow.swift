@@ -101,6 +101,7 @@ final class BrowserWindow {
         window.content = try layout()
         applyCaptionColors()
         try window.appWindow.resize(SizeInt32(width: 1280, height: 800))
+        window.setArrowIcon()
         try window.activate()
         handleEvents()
         if spaceID == nil,
@@ -1014,6 +1015,17 @@ extension GridLength {
 }
 
 extension Window {
+    /// Arrow's icon in the taskbar and Alt+Tab, as Arc shows its own:
+    /// Arrow.ico, next to Arrow.exe (stage.ps1 installs it).
+    func setArrowIcon() {
+        var buffer = [WCHAR](repeating: 0, count: Int(MAX_PATH) * 2)
+        let length = GetModuleFileNameW(nil, &buffer, DWORD(buffer.count))
+        let executable = URL(fileURLWithPath: String(decoding: buffer.prefix(Int(length)), as: UTF16.self))
+        let icon = executable.deletingLastPathComponent().appendingPathComponent("Arrow.ico").path
+        guard FileManager.default.fileExists(atPath: icon) else { return }
+        try? appWindow.setIcon(icon)
+    }
+
     /// The window's Win32 handle, as Microsoft.UI.Interop.h's
     /// GetWindowFromWindowId gets it.
     func handle() throws(WindowsAppRuntime.Failure) -> HWND {

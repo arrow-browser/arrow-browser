@@ -40,6 +40,7 @@ final class SettingsWindow {
         window.extendsContentIntoTitleBar = true
         window.systemBackdrop = MicaBackdrop()
         try? window.appWindow.resize(SizeInt32(width: 700, height: 640))
+        window.setArrowIcon()
         sections.padding = Thickness(left: 36, top: 44, right: 36, bottom: 36)
         sections.spacing = 8
         sections.maxWidth = 700
