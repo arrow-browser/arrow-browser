@@ -28,6 +28,10 @@ final class Sidebar {
     /// The tab paused from the media controls, which stay (with Play) while
     /// it shows the same page.
     private var pausedMedia: (id: Foundation.UUID, url: String)?
+    /// The pointer is over the sidebar, where Arc shows "Clear".
+    private var isPointerOver = false
+    /// Shows or hides the divider's "Clear".
+    private var showClear: ((Bool) -> Void)?
 
     init(window: BrowserWindow) throws {
         self.window = window
@@ -49,6 +53,8 @@ final class Sidebar {
         }
         makeDropTarget(favorites) { .favorites() }
         layoutBottomBar()
+        element.pointerEntered.addHandler { [weak self] _, _ in self?.pointerDidMove(over: true) }
+        element.pointerExited.addHandler { [weak self] _, _ in self?.pointerDidMove(over: false) }
         // Apart from the rows: downloads change many times a second.
         observe { [weak self] in
             guard let self else { return }
@@ -464,7 +470,7 @@ final class Sidebar {
         divider.height = space.pinned.isEmpty ? 0 : 20
         // Dropped on the divider, a node goes first in today's tabs.
         makeDropTarget(divider) { SidebarLocation(spaceID: space.id, section: .today, index: 0) }
-        divider.margin = Thickness(left: 9, top: 2, right: 4, bottom: 2)
+        divider.margin = Thickness(left: 1, top: 2, right: 1, bottom: 2)
         // Hit-testable where empty, for the pointer to show "Clear".
         divider.background = brushes.clear
         for width in [GridLength.star, .auto] {
@@ -478,31 +484,44 @@ final class Sidebar {
         line.background = brushes.separator
         try? Grid.setColumnSpan(line, 2)
         divider.children.append(line)
+        showClear = nil
         guard !space.today.isEmpty, !space.pinned.isEmpty else { return divider }
 
+        // Arc's: "↓ Clear" in light gray, 12 pixels after the line.
         let label = StackPanel()
         label.orientation = .horizontal
-        label.spacing = 4
+        label.spacing = 5
         label.children.append(Glyph.view(Glyph.clear, size: 10))
         let text = TextBlock()
         text.text = "Clear"
-        text.fontSize = 11
-        text.fontWeight = FontWeight(weight: 600)
+        text.fontSize = 12
         label.children.append(text)
         let clear = Button()
         clear.content = label
-        clear.height = 20
-        clear.padding = Thickness(left: 6, top: 0, right: 6, bottom: 0)
-        clear.margin = Thickness(left: 8, top: 0, right: 0, bottom: 0)
+        clear.height = 16
+        clear.minHeight = 0
+        clear.padding = Thickness(left: 4, top: 0, right: 1, bottom: 0)
+        clear.margin = Thickness(left: 12, top: 0, right: 0, bottom: 0)
+        clear.borderThickness = Thickness()
         clear.foreground = brushes.subtitle
+        clear.opacity = 0.75
         try? AutomationProperties.setName(clear, "Clear")
         try? ToolTipService.setToolTip(clear, "Archive all unpinned tabs")
         try? Grid.setColumn(clear, 1)
         divider.children.append(clear)
         clear.click.addHandler { [weak self] _, _ in self?.window.clearToday() }
-        // The line makes room for "Clear" while it shows.
-        Self.showOnHover(clear, in: divider) { shown in try? Grid.setColumnSpan(line, shown ? 1 : 2) }
+        // While the pointer is over the sidebar; the line makes room for it.
+        showClear = { shown in
+            clear.visibility = shown ? .visible : .collapsed
+            try? Grid.setColumnSpan(line, shown ? 1 : 2)
+        }
+        showClear?(isPointerOver)
         return divider
+    }
+
+    private func pointerDidMove(over isOver: Bool) {
+        isPointerOver = isOver
+        showClear?(isOver)
     }
 
     // MARK: - Bottom bar
