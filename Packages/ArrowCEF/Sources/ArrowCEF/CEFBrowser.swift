@@ -211,7 +211,8 @@ public final class CEFBrowser: @unchecked Sendable {
     /// Opens Developer Tools, on `panel` ("console", "network"…) when given.
     public func showDevTools(inspectAt point: CGPoint?, panel: String?) {
         guard let host else { return }
-        let client = panel.map { CEFDevToolsPanel.client(showing: $0) }
+        // An open window is only focused: CEF ignores the client then.
+        let client = hasDevTools ? nil : CEFDevToolsClient.client(showing: panel)
         var windowInfo = cef_window_info_t.topLevel(bounds: cef_rect_t(x: 120, y: 120, width: 1000, height: 720))
         var settings = cef_browser_settings_t()
         settings.size = MemoryLayout<cef_browser_settings_t>.size

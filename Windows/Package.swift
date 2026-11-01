@@ -40,7 +40,7 @@ let package = Package(
         .target(
             name: "ArrowWindows",
             dependencies: [
-                "WindowsFoundation", "UWP", "WinAppSDK", "WinUI",
+                "CWinRT", "WindowsFoundation", "UWP", "WinAppSDK", "WinUI",
                 .product(name: "ArrowKit", package: "ArrowKit"),
                 .product(name: "ArrowCore", package: "ArrowKit"),
                 .product(name: "ArrowCEF", package: "ArrowCEF"),

@@ -38,6 +38,8 @@ public final class CommandBarModel {
     public private(set) var typedText: String
     public private(set) var completion: CommandBarCompletion?
     @ObservationIgnored private var isCompleting = false
+    /// The text was typed forward, and history did not complete it.
+    @ObservationIgnored private var mayCompleteFromSuggestions = false
 
     public var activeSiteSearch: SiteSearch? {
         didSet { refresh() }
@@ -47,6 +49,7 @@ public final class CommandBarModel {
     public var selectedIndex = 0
 
     @ObservationIgnored private var suggestions: [String] = []
+    @ObservationIgnored private var navigations: [SearchSuggestions.Navigation] = []
     @ObservationIgnored private var suggestionTask: Task<Void, Never>?
     @ObservationIgnored private let sources: Sources
 
@@ -58,6 +61,17 @@ public final class CommandBarModel {
         public var engine: () -> SearchEngine
         public var settings: () -> ArrowSettings
         public var currentTabID: UUID?
+        /// The platform's completion of typed text history does not complete
+        /// (Arc on Windows completes well-known sites: "transl" →
+        /// translate.google.com).
+        public var fallbackCompletion: (String) -> CommandBarCompletion? = { _ in nil }
+        /// The platform's completion from the search suggestions, once they
+        /// arrive (Arc on Windows completes "zoom" with a site Google
+        /// suggests, zoomalia.com), unless history completed the text.
+        public var suggestedCompletion: ([SearchSuggestions.Navigation], String) -> CommandBarCompletion? = { _, _ in nil }
+        /// The platform's order of the ranked rows for the typed text (Arc on
+        /// Windows shows five, its commands among the first).
+        public var arrange: ([CommandBarItem], String) -> [CommandBarItem] = { items, _ in items }
 
         public init(openTabs: @escaping () -> [CommandBarTab], history: @escaping () -> History,
                     commands: [CommandBarCommand], engine: @escaping () -> SearchEngine,
@@ -123,15 +137,29 @@ public final class CommandBarModel {
         guard !isCompleting else { return }
         let typedForward = text.count > typedText.count && text.lowercased().hasPrefix(typedText.lowercased())
         typedText = text
-        completion = typedForward && activeSiteSearch == nil ? ranker.completion(for: text, history: sources.history()) : nil
-        if let completion {
-            isCompleting = true
-            text = completion.text
-            isCompleting = false
-            selectedRange = text.index(text.startIndex, offsetBy: typedText.count)..<text.endIndex
-        }
+        let completes = typedForward && activeSiteSearch == nil
+        let fromHistory = completes ? ranker.completion(for: text, history: sources.history()) : nil
+        mayCompleteFromSuggestions = completes && fromHistory == nil
+        complete(with: fromHistory ?? (completes ? sources.fallbackCompletion(text) : nil))
         selectedIndex = 0
         refresh()
+    }
+
+    private func complete(with completion: CommandBarCompletion?) {
+        self.completion = completion
+        guard let completion else { return }
+        isCompleting = true
+        text = completion.text
+        isCompleting = false
+        selectedRange = text.index(text.startIndex, offsetBy: typedText.count)..<text.endIndex
+    }
+
+    /// The platform's completion from the suggestions just received, unless
+    /// the user typed since.
+    private func completeFromSuggestions() {
+        guard mayCompleteFromSuggestions, text == (completion?.text ?? typedText),
+              let suggested = sources.suggestedCompletion(navigations, typedText), suggested != completion else { return }
+        complete(with: suggested)
     }
 
     private func refresh() {
@@ -150,6 +178,7 @@ public final class CommandBarModel {
                                      subtitle: "Ask ChatGPT", url: "https://chatgpt.com")
             items.insert(row, at: min(items.count, completion == nil ? 1 : 2))
         }
+        if activeSiteSearch == nil { items = sources.arrange(items, typedText) }
         selectedIndex = min(selectedIndex, max(items.count - 1, 0))
         if typedText.isEmpty { selectedIndex = 0 }
     }
@@ -183,6 +212,8 @@ public final class CommandBarModel {
             guard let (data, _) = try? await URLSession.shared.data(for: request), !Task.isCancelled else { return }
             guard let self else { return }
             suggestions = SearchSuggestions.parse(data)
+            navigations = SearchSuggestions.navigations(data)
+            completeFromSuggestions()
             rank()
         }
     }

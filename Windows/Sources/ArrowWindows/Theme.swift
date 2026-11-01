@@ -5,13 +5,20 @@ import UWP
 import WindowsFoundation
 import WinUI
 
-/// The current space's colors (ArrowKit's `ThemePalette`) as WinUI brushes.
+/// The current space's colors (ArrowKit's `ThemePalette`) as WinUI brushes,
+/// as Arc draws them on Windows: the theme's colors over Mica (the desktop
+/// showing through), titles and icons in a dark shade of the theme's hue.
 /// The window's elements share them, and they change color in place when
 /// the space or its theme changes.
 @MainActor
 final class ThemeBrushes {
-    /// The space gradient behind the sidebar and around the content.
+    /// The space gradient behind the sidebar and around the content, over
+    /// the window's Mica backdrop.
     let background = LinearGradientBrush()
+    /// Folder icons, in a vivid shade of the theme's hue.
+    let folder = SolidColorBrush()
+    /// The inside of a closed folder's icon (#EFEFFD in Arc's default space).
+    let folderFill = SolidColorBrush()
     let title = SolidColorBrush()
     let subtitle = SolidColorBrush()
     let icon = SolidColorBrush()
@@ -22,38 +29,56 @@ final class ThemeBrushes {
     let pressed = SolidColorBrush()
     let selection = SolidColorBrush()
     let separator = SolidColorBrush()
+    /// The bottom edge of the selected row, Arc's card shadow.
+    let selectionEdge = SolidColorBrush()
     let content = SolidColorBrush()
     let clear = SolidColorBrush(Color(a: 0, r: 0, g: 0, b: 0))
     private(set) var palette: ThemePalette
 
-    init(palette: ThemePalette) {
-        self.palette = palette
+    /// The gradient of Arc's default space on Windows.
+    static let arcDefaultColors = [RGBColor(hex: 0x8B8BD5), RGBColor(hex: 0xEABFAF)]
+
+    init(theme: SpaceTheme, isDark: Bool) {
+        palette = theme.palette(isDark: isDark)
         background.startPoint = Point(x: 0, y: 0)
         background.endPoint = Point(x: 1, y: 1)
-        apply(palette)
+        apply(theme: theme, isDark: isDark)
     }
 
-    func apply(_ palette: ThemePalette) {
+    func apply(theme: SpaceTheme, isDark: Bool) {
+        let palette = theme.palette(isDark: isDark)
         self.palette = palette
-        let stops = palette.backgroundStops.count == 1
-            ? [palette.backgroundStops[0], palette.backgroundStops[0]] : palette.backgroundStops
+        // Arc's tint over Mica: the theme's own colors, partly transparent.
+        // ArrowKit's default theme stands for Arc's default space on Windows:
+        // measured over the same Mica, a blue-violet to peach gradient.
+        let colors = theme == .lavender ? Self.arcDefaultColors
+            : theme.colors.count == 1 ? [theme.colors[0], theme.colors[0]] : theme.colors
+        let alpha = isDark ? 0.18 + theme.intensity * 0.5 : 0.16 + theme.intensity * 0.6
         background.gradientStops.clear()
-        for (index, color) in stops.enumerated() {
+        for (index, color) in colors.enumerated() {
             let stop = GradientStop()
-            stop.color = Color(color)
-            stop.offset = Double(index) / Double(stops.count - 1)
+            stop.color = Color(color.withAlpha(alpha))
+            stop.offset = Double(index) / Double(colors.count - 1)
             background.gradientStops.append(stop)
         }
-        title.color = Color(palette.title)
+        let hue = theme.primary.hsb.hue
+        // Arc's titles and icons on Windows: a dark shade of the theme's hue
+        // (#0D0F4B in its default space).
+        let ink = isDark ? palette.title : RGBColor(hue: hue, saturation: 0.82, brightness: 0.29)
+        title.color = Color(ink)
         subtitle.color = Color(palette.subtitle)
-        icon.color = Color(palette.icon)
-        disabledIcon.color = Color(palette.icon.withAlpha(0.45))
+        icon.color = Color(isDark ? palette.icon : ink)
+        let folderColor = RGBColor(hue: hue, saturation: 0.82, brightness: isDark ? 1 : 0.98)
+        folder.color = Color(folderColor)
+        folderFill.color = Color(isDark ? folderColor.withAlpha(0.2) : RGBColor(hue: hue, saturation: 0.06, brightness: 0.99))
+        disabledIcon.color = Color((isDark ? palette.icon : ink).withAlpha(0.4))
         controlFill.color = Color(palette.controlFill)
         controlHover.color = Color(palette.controlFill.withAlpha(min(palette.controlFill.alpha * 1.6, 1)))
         hover.color = Color(palette.hover)
         pressed.color = Color(palette.isDark ? RGBColor.white.withAlpha(0.12) : RGBColor.black.withAlpha(0.08))
         selection.color = Color(palette.selection)
-        separator.color = Color(palette.subtitle.withAlpha(0.25))
+        separator.color = Color(palette.subtitle.withAlpha(0.35))
+        selectionEdge.color = Color(RGBColor.black.withAlpha(isDark ? 0.2 : 0.07))
         content.color = Color(palette.contentBackground)
     }
 
@@ -81,6 +106,36 @@ final class ThemeBrushes {
     }
 }
 
+/// Settings ▸ General ▸ Window backdrop, Arc's: Mica matches the window to
+/// the desktop, Acrylic blurs what is behind it. A Windows setting, kept in
+/// the app's defaults.
+enum WindowBackdrop: String, CaseIterable {
+    case mica = "Mica"
+    case acrylic = "Acrylic"
+
+    private static let key = "WindowBackdrop"
+
+    static var current: WindowBackdrop {
+        get { UserDefaults.standard.string(forKey: key).flatMap(WindowBackdrop.init(rawValue:)) ?? .mica }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: key)
+            UserDefaults.standard.synchronize()
+        }
+    }
+
+    @MainActor
+    func make() -> SystemBackdrop {
+        switch self {
+        case .mica:
+            let mica = MicaBackdrop()
+            mica.kind = .baseAlt
+            return mica
+        case .acrylic:
+            return DesktopAcrylicBackdrop()
+        }
+    }
+}
+
 extension Color {
     init(_ color: RGBColor) {
         func byte(_ value: Double) -> UInt8 { UInt8((min(max(value, 0), 1) * 255).rounded()) }
@@ -94,12 +149,13 @@ enum Glyph {
     static let back = "\u{E72B}"
     static let forward = "\u{E72A}"
     static let reload = "\u{E72C}"
-    static let sidebar = "\u{E8A0}"
+    static let sidebar = "\u{E90C}"
     static let link = "\u{E71B}"
     static let add = "\u{E710}"
     static let close = "\u{E711}"
     static let folder = "\u{E8B7}"
     static let folderOpen = "\u{E838}"
+    static let folderFill = "\u{E8D5}"
     static let split = "\u{E89A}"
     static let globe = "\u{E774}"
     static let clear = "\u{E74B}"
@@ -107,6 +163,47 @@ enum Glyph {
     static let history = "\u{E81C}"
     static let pin = "\u{E718}"
     static let undo = "\u{E7A7}"
+    static let heart = "\u{EB51}"
+    static let update = "\u{EBD3}"
+    static let sync = "\u{E895}"
+    static let chevronRight = "\u{E76C}"
+    static let bell = "\u{EA8F}"
+    static let delete = "\u{E74D}"
+    static let openInNew = "\u{E8A7}"
+    static let key = "\u{E8D7}"
+    static let card = "\u{E8C7}"
+    static let importItems = "\u{E8B5}"
+    static let newWindow = "\u{E737}"
+    static let incognito = "\u{E890}"
+    static let spaces = "\u{E8EA}"
+    static let extensions = "\u{EA86}"
+    static let developer = "\u{E943}"
+    static let help = "\u{E76E}"
+    static let settings = "\u{E713}"
+    static let print = "\u{E749}"
+    static let person = "\u{E77B}"
+    static let newSpace = "\u{EA61}"
+    static let newFolder = "\u{E8F4}"
+    static let addCircle = "\u{ECC8}"
+    static let splitView = "\u{F57C}"
+    static let splitRight = "\u{F5A6}"
+    static let splitLeft = "\u{F5A5}"
+    static let splitTop = "\u{F5A7}"
+    static let splitBottom = "\u{F5A8}"
+    static let siteControls = "\u{E9E9}"
+    static let archive = "\u{E7B8}"
+    static let lock = "\u{E72E}"
+    static let share = "\u{E72D}"
+    static let more = "\u{E712}"
+    static let find = "\u{E721}"
+    static let chevronUp = "\u{E70E}"
+    static let chevronDown = "\u{E70D}"
+    static let speaker = "\u{E767}"
+    static let mute = "\u{E74F}"
+    static let download = "\u{E896}"
+    static let play = "\u{E768}"
+    static let pause = "\u{E769}"
+    static let live = "\u{E945}"
 
     static let font = FontFamily("Segoe Fluent Icons")
 
@@ -134,6 +231,32 @@ enum Glyph {
         case "arrow.right.square": forward
         case "xmark.circle": close
         case "arrow.uturn.backward": undo
+        // Arc's commands.
+        case "gearshape": settings
+        case "xmark": close
+        case "arrow.clockwise": reload
+        case "archivebox": archive
+        case "hammer", "doc.plaintext": developer
+        case "plus.square.on.square": "\u{E8C8}"
+        case "heart": heart
+        case "puzzlepiece": extensions
+        case "arrow.up.left.and.arrow.down.right": "\u{E740}"
+        case "square.and.arrow.down": importItems
+        case "arrow.right": forward
+        case "arrow.left": back
+        case "star": "\u{E734}"
+        case "printer": print
+        case "pencil": "\u{E70F}"
+        case "plus.magnifyingglass": "\u{E8A3}"
+        case "minus.magnifyingglass": "\u{E71F}"
+        case "arrow.counterclockwise": undo
+        case "folder": folder
+        case "rectangle.split.2x1": splitView
+        case "arrow.down.circle": update
+        case "square.stack": spaces
+        // Space icons.
+        case "person.fill", "person": person
+        case "globe", "globe.americas.fill", "globe.europe.africa.fill": globe
         default: globe
         }
     }

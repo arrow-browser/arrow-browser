@@ -63,6 +63,18 @@ final class ArrowApp {
             try? FileManager.default.removeItem(at: profile)
             runtime.rootCachePath = profile
         }
+        // Arc's thin scrollbars over the page, shown while scrolling.
+        runtime.browserSwitches.append(("enable-features", "FluentScrollbar,FluentOverlayScrollbar,OverlayScrollbar"))
+        // No Cast, as in Arc for Windows: Chromium's Media Router would look
+        // for devices with mDNS and get the firewall to ask about Arrow.
+        runtime.usesMediaRouter = false
+        // Links opened from other apps while Arrow runs: Chromium hands the
+        // new launch over to this process.
+        runtime.onRelaunch = { arguments in
+            for address in URLInput.commandLineAddresses(arguments) {
+                ArrowApp.openExternal(address)
+            }
+        }
         // WinUI runs the message loop.
         let pump = MessagePump()
         runtime.usesExternalMessagePump = true
@@ -89,18 +101,11 @@ final class ArrowApp {
     }
 
     fileprivate func launched() {
-        let window: BrowserWindow
-        do {
-            window = try BrowserWindow(store: store)
-        } catch {
-            print("arrow: the window failed to open: \(error)")
-            return
-        }
-        windows.append(window)
-        window.onClose = { [weak self, weak window] in
-            self?.windows.removeAll { $0 === window }
-        }
+        // Arc's teaching tips (Translate's) are as wide as their content.
+        _ = Application.current.resources.insert("TeachingTipMinWidth", 0.0)
+        guard let window = open(store) else { return }
         guard smoke else {
+            LiveFolders.shared.start(store: store)
             for address in addresses { window.openNewTab(address) }
             // Like Arc, an empty window starts with the command bar.
             if window.state.selectedTabID == nil { window.showCommandBar(mode: .newTab) }
@@ -113,6 +118,79 @@ final class ArrowApp {
             print("arrow: the page did not load within 60 seconds")
             exit(1)
         }
+    }
+
+    /// Whether a window other than `window` shows `window`'s store.
+    static func hasOtherWindow(than window: BrowserWindow) -> Bool {
+        current?.windows.contains { $0 !== window && $0.store === window.store } ?? false
+    }
+
+    /// Gives every window the backdrop of the settings.
+    static func applyBackdrop() {
+        current?.windows.forEach { $0.applyBackdrop() }
+    }
+
+    /// The store of the app's windows (not of incognito ones).
+    static var store: BrowserStore? { current?.store }
+
+    /// Opens `address` in a new tab of the last window.
+    static func openInFrontWindow(_ address: String) {
+        current?.windows.last { !$0.store.isIncognito }?.openNewTab(address)
+    }
+
+    /// Opens a link from another app as Arc does: in the space an Air Traffic
+    /// Control rule routes it to, else in Little Arrow, or in a tab of the
+    /// last window (Settings ▸ General).
+    static func openExternal(_ address: String) {
+        guard let app = current else { return }
+        let store = app.store
+        let window = app.windows.last { !$0.store.isIncognito }
+        if let spaceID = store.settings.route(address), let window {
+            window.selectSpace(spaceID)
+            window.openNewTab(address)
+            window.bringToFront()
+            return
+        }
+        switch store.settings.externalLinks {
+        case .littleArrow:
+            LittleArrowWindow.open(address, from: store)
+        case .activeSpace:
+            window?.openNewTab(address)
+            window?.bringToFront()
+        }
+    }
+
+    /// Moves a page from Little Arrow into the last window's today tabs.
+    static func adopt(_ tab: WebTab) {
+        current?.windows.last { !$0.store.isIncognito }?.adopt(tab)
+    }
+
+    /// Opens another browser window on the current space (New Window), or an
+    /// incognito one, on a store of its own that keeps nothing.
+    static func openWindow(incognito: Bool = false) {
+        guard let app = current else { return }
+        let source = app.store
+        let store = incognito
+            ? BrowserStore(incognitoWith: source.settings, downloads: source.downloads, engine: source.engine,
+                           platform: source.platform)
+            : source
+        let spaceID = incognito ? store.state.spaces[0].id : app.windows.last?.state.selectedSpaceID ?? store.state.spaces[0].id
+        app.open(store, spaceID: spaceID)?.showCommandBar(mode: .newTab)
+    }
+
+    private func open(_ store: BrowserStore, spaceID: Foundation.UUID? = nil) -> BrowserWindow? {
+        let window: BrowserWindow
+        do {
+            window = try BrowserWindow(store: store, spaceID: spaceID)
+        } catch {
+            print("arrow: the window failed to open: \(error)")
+            return nil
+        }
+        windows.append(window)
+        window.onClose = { [weak self, weak window] in
+            self?.windows.removeAll { $0 === window }
+        }
+        return window
     }
 
     private func smokeTest(_ tab: WebTab, in window: BrowserWindow) async {

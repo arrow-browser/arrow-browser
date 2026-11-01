@@ -70,11 +70,18 @@ struct CommandBarTests {
         #expect(items.filter { $0.url == "https://www.swift.org/" }.count == 1)
     }
 
-    @Test func parsesSuggestionPayloads() {
+    @Test func parsesSuggestionPayloads() throws {
         let google = Data(#"["swi",["swift","swiss"],[],{}]"#.utf8)
         #expect(SearchSuggestions.parse(google) == ["swift", "swiss"])
         let duck = Data(#"[{"phrase":"arc"},{"phrase":"arrow"}]"#.utf8)
         #expect(SearchSuggestions.parse(duck) == ["arc", "arrow"])
+        // Google's ISO-8859-1 answer when a suggestion has an accent.
+        let latin1 = try #require(#"["traduction",["traduction français"]]"#.data(using: .isoLatin1))
+        #expect(SearchSuggestions.parse(latin1) == ["traduction français"])
+        // Google's "chrome" client marks the sites it suggests.
+        let chrome = Data(#"["zoom",["zoom","https://www.zoomalia.com/"],["",""],[],{"google:suggestrelevance":[1300,1249],"google:suggesttype":["QUERY","NAVIGATION"]}]"#.utf8)
+        #expect(SearchSuggestions.navigations(chrome) == [.init(url: "https://www.zoomalia.com/", relevance: 1249)])
+        #expect(SearchSuggestions.navigations(google).isEmpty)
     }
 }
 
