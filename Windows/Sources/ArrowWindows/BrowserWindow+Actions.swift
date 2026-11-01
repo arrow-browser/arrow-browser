@@ -3,6 +3,7 @@ import ArrowCore
 import ArrowKit
 import Foundation
 import WinSDK
+import WinUI
 
 /// What the window's menus and shortcuts do, as the macOS app's actions.
 extension BrowserWindow {
@@ -136,6 +137,24 @@ extension BrowserWindow {
     func rename(_ nodeID: Foundation.UUID) {
         if !state.isSidebarVisible { toggleSidebar() }
         state.renamingNodeID = nodeID
+    }
+
+    /// Arc's "Rename Tab…" dialog, for a favorite: its tile has no title to
+    /// edit in place.
+    func renameFavorite(_ tabID: Foundation.UUID) {
+        guard let tab = store.state.tab(tabID) else { return }
+        let name = TextBox()
+        name.text = tab.customTitle.flatMap { $0.isEmpty ? nil : $0 } ?? store.tabs[tabID]?.displayTitle ?? store.title(of: tab)
+        name.placeholderText = "Keep it short and sweet!"
+        try? name.selectAll()
+        Sheet(window: self, title: "Rename Tab…", content: name, width: 320, actions: [
+            Sheet.Action(title: "Rename", isPrimary: true) { [weak self] in
+                let title = name.text.trimmingCharacters(in: .whitespaces)
+                self?.store.update { $0.updateTab(tabID) { $0.customTitle = title.isEmpty ? nil : title } }
+                return true
+            },
+            Sheet.Action(title: "Cancel"),
+        ]).show(focusing: name)
     }
 
     // MARK: - Split View

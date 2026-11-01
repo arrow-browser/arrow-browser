@@ -109,9 +109,13 @@ final class Sheet {
         guard let root = window.content.xamlRoot else { return }
         popup.xamlRoot = root
         try? panel.measure(Size(width: Float(panel.width), height: .infinity))
-        let height = Double(panel.desiredSize.height)
-        popup.horizontalOffset = (window.content.actualWidth - panel.width) / 2
-        popup.verticalOffset = max((window.content.actualHeight - height) / 2, 24)
+        center(height: Double(panel.desiredSize.height))
+        // Measured before their templates apply, fields count short: center
+        // the sheet again once laid out, as a ContentDialog sits.
+        panel.sizeChanged.addHandler { [weak self] _, _ in
+            guard let self else { return }
+            center(height: panel.actualHeight)
+        }
         popup.isOpen = true
         Sheet.open.append(self)
         guard let control else { return }
@@ -127,6 +131,11 @@ final class Sheet {
 
     func close() {
         popup.isOpen = false
+    }
+
+    private func center(height: Double) {
+        popup.horizontalOffset = (window.content.actualWidth - panel.width) / 2
+        popup.verticalOffset = max((window.content.actualHeight - height) / 2, 24)
     }
 }
 

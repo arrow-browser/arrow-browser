@@ -656,6 +656,7 @@ final class Sidebar {
             Menu.title("Tab Context Menu"),
             Menu.item("Copy Link") { [weak self] in self?.window.copyLink(of: tab.id) },
             Menu.separator(),
+            Menu.item("Rename…") { [weak self] in self?.window.renameFavorite(tab.id) },
             Menu.item(live?.isMuted == true ? "Unmute" : "Mute", isEnabled: live?.isPlayingMedia == true || live?.isMuted == true) { [weak self] in
                 self?.window.toggleMute(tab.id)
             },
