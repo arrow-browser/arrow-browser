@@ -4,11 +4,12 @@ import Foundation
 import UWP
 import WinAppSDK
 import WindowsFoundation
+import WinSDK
 import WinUI
 
 /// Arc's settings on Windows: one window of sections (Account, Profiles,
-/// Sync, General, Extensions, Max, Advanced), each a column of Windows 11
-/// cards, over Mica.
+/// Sync, General, Advanced, then Arrow's Extensions, the Card and Max), each
+/// a column of Windows 11 cards, over Mica.
 @MainActor
 final class SettingsWindow {
     enum Section: String {
@@ -39,10 +40,17 @@ final class SettingsWindow {
         window.title = "Arrow Settings"
         window.extendsContentIntoTitleBar = true
         window.systemBackdrop = MicaBackdrop()
-        try? window.appWindow.resize(SizeInt32(width: 700, height: 640))
+        try? window.appWindow.resize(SizeInt32(width: 700, height: 600))
         window.setArrowIcon()
-        sections.padding = Thickness(left: 36, top: 44, right: 36, bottom: 36)
-        sections.spacing = 8
+        // Arc's settings window has only the close button.
+        if let handle = try? window.handle() {
+            let style = GetWindowLongPtrW(handle, GWL_STYLE)
+            SetWindowLongPtrW(handle, GWL_STYLE, style & ~LONG_PTR(WS_MINIMIZEBOX | WS_MAXIMIZEBOX))
+        }
+        // Arc's spacing: 16 pixels before a heading, 8 after it (4 before
+        // its description, 16 after that), 4 between cards.
+        sections.padding = Thickness(left: 36, top: 36, right: 36, bottom: 36)
+        sections.spacing = 4
         sections.maxWidth = 700
         scroller.content = sections
         let root = Grid()
@@ -95,7 +103,7 @@ final class SettingsWindow {
         // Sync
         heading("Arrow Sync", nil)
         text("Arrow Sync is end-to-end encrypted, only you can see your data.")
-        card("Sidebar Sync", settings.syncEnabled ? "Sync enabled" : "Sync disabled",
+        card("Sidebar Sync", settings.syncEnabled ? "Sync enabled" : "Sync disabled", icon: Glyph.sync,
              trailing: toggle(settings.syncEnabled) { [weak self] in self?.store.settings.syncEnabled = $0 })
 
         // General
@@ -135,6 +143,13 @@ final class SettingsWindow {
         card("Sound effects", nil,
              trailing: toggle(settings.soundEffects) { [weak self] in self?.store.settings.soundEffects = $0 })
 
+        // Advanced
+        heading("Advanced", .advanced)
+        card("Export Spaces and tabs", "A zip archive of Arrow's data, in your Downloads folder.",
+             trailing: button("Export Data") { [weak self] in self?.exportData() })
+        card("Developer mode", "Shows full addresses and developer tools in menus.",
+             trailing: toggle(settings.developerMode) { [weak self] in self?.store.settings.developerMode = $0 })
+
         // Extensions
         heading("Extensions", .extensions)
         let extensions = ExtensionManager.shared.extensions
@@ -168,12 +183,6 @@ final class SettingsWindow {
         future.click.addHandler { [weak self] _, _ in self?.store.settings.autoEnableNewMaxFeatures = future.isChecked == true }
         sections.children.append(future)
 
-        // Advanced
-        heading("Advanced", .advanced)
-        card("Export Spaces and tabs", "A zip archive of Arrow's data, in your Downloads folder.",
-             trailing: button("Export Data") { [weak self] in self?.exportData() })
-        card("Developer mode", "Shows full addresses and developer tools in menus.",
-             trailing: toggle(settings.developerMode) { [weak self] in self?.store.settings.developerMode = $0 })
     }
 
     /// Arc's card: the user's name, a title earned by browsing, and the day
@@ -313,24 +322,26 @@ final class SettingsWindow {
         text.text = title
         text.fontSize = 20
         text.fontWeight = FontWeight(weight: 600)
-        text.margin = Thickness(left: 0, top: sections.children.size == 0 ? 0 : 24, right: 0, bottom: 4)
+        text.margin = Thickness(left: 0, top: sections.children.size == 0 ? 0 : 12, right: 0, bottom: 4)
         sections.children.append(text)
         if let section { anchors[section] = text }
     }
 
+    /// A heading's description.
     private func text(_ string: String) {
         let text = TextBlock()
         text.text = string
         text.fontSize = 12
         text.textWrapping = .wrap
-        text.margin = Thickness(left: 0, top: 0, right: 0, bottom: 4)
+        text.margin = Thickness(left: 0, top: -4, right: 0, bottom: 12)
         sections.children.append(text)
     }
 
-    /// A Windows 11 settings card: a title, a description, a control.
-    private func card(_ title: String, _ detail: String?, trailing: UIElement) {
+    /// A Windows 11 settings card: an icon, a title, a description, a
+    /// control.
+    private func card(_ title: String, _ detail: String?, icon: String? = nil, trailing: UIElement) {
         let card = Grid()
-        card.padding = Thickness(left: 20, top: 14, right: 16, bottom: 14)
+        card.padding = Thickness(left: 24, top: 14, right: 16, bottom: 14)
         card.minHeight = 66
         card.cornerRadius = CornerRadius(4)
         card.borderThickness = Thickness(left: 1, top: 1, right: 1, bottom: 1)
@@ -357,7 +368,19 @@ final class SettingsWindow {
             text.textWrapping = .wrap
             labels.children.append(text)
         }
-        card.children.append(labels)
+        if let icon {
+            let header = StackPanel()
+            header.orientation = .horizontal
+            header.spacing = 14
+            let glyph = Glyph.view(icon, size: 18)
+            glyph.width = 20
+            glyph.verticalAlignment = .center
+            header.children.append(glyph)
+            header.children.append(labels)
+            card.children.append(header)
+        } else {
+            card.children.append(labels)
+        }
         if let element = trailing as? FrameworkElement { element.verticalAlignment = .center }
         try? Grid.setColumn(trailing as? FrameworkElement, 1)
         card.children.append(trailing)
@@ -374,14 +397,29 @@ final class SettingsWindow {
         return button
     }
 
-    private func toggle(_ isOn: Bool, action: @escaping (Bool) -> Void) -> ToggleSwitch {
+    /// Arc's switch: "On" or "Off" (in English, not the system's language)
+    /// before it, at the card's right.
+    private func toggle(_ isOn: Bool, action: @escaping (Bool) -> Void) -> UIElement {
+        let label = TextBlock()
+        label.text = isOn ? "On" : "Off"
+        label.fontSize = 14
+        label.verticalAlignment = .center
         let toggle = ToggleSwitch()
-        // Arc's English, not the system's language.
-        toggle.onContent = "On"
-        toggle.offContent = "Off"
+        toggle.minWidth = 0
+        // The switch's own text goes before it: none after.
+        toggle.onContent = Border()
+        toggle.offContent = Border()
         toggle.isOn = isOn
-        toggle.toggled.addHandler { _, _ in action(toggle.isOn) }
-        return toggle
+        toggle.toggled.addHandler { _, _ in
+            label.text = toggle.isOn ? "On" : "Off"
+            action(toggle.isOn)
+        }
+        let control = StackPanel()
+        control.orientation = .horizontal
+        control.spacing = 12
+        control.children.append(label)
+        control.children.append(toggle)
+        return control
     }
 
     private func choice(_ titles: [String], selected: Int, action: @escaping (Int) -> Void) -> ComboBox {
@@ -390,7 +428,8 @@ final class SettingsWindow {
             combo.items.append(title)
         }
         combo.selectedIndex = Int32(selected)
-        combo.minWidth = 160
+        // As wide as the choice, as Arc's.
+        combo.minWidth = 0
         combo.selectionChanged.addHandler { _, _ in
             let index = Int(combo.selectedIndex)
             if index >= 0 { action(index) }

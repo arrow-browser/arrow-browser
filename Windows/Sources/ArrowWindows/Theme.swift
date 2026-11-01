@@ -165,6 +165,7 @@ enum Glyph {
     static let undo = "\u{E7A7}"
     static let heart = "\u{EB51}"
     static let update = "\u{EBD3}"
+    static let sync = "\u{E895}"
     static let importItems = "\u{E8B5}"
     static let newWindow = "\u{E737}"
     static let incognito = "\u{E890}"
