@@ -643,10 +643,16 @@ final class BrowserWindow {
             showTranslate(under: translateButton)
         }
         splitButton.click.addHandler { [weak self] _, _ in
-            guard let self else { return }
-            let menu = splitViewMenu()
-            menu.placement = .bottomEdgeAlignedRight
-            try? menu.showAt(splitButton)
+            // Once WinUI has moved the keyboard from the page to the toolbar,
+            // after the click: the menu, over the page, opened at once would
+            // take that for a click elsewhere and close before showing.
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(60))
+                guard let self else { return }
+                let menu = splitViewMenu()
+                menu.placement = .bottomEdgeAlignedRight
+                try? menu.showAt(splitButton)
+            }
         }
         backButton.click.addHandler { [weak self] _, _ in self?.selectedTab?.goBack() }
         forwardButton.click.addHandler { [weak self] _, _ in self?.selectedTab?.goForward() }
@@ -811,7 +817,12 @@ final class BrowserWindow {
         case let .siteSearch(site, query):
             open(site.searchURL(for: query), mode: mode)
         case let .switchToTab(tabID):
-            select(tabID)
+            // Splitting, an open page joins the split view (Arc's).
+            if case let .splitPane(besideTabID) = mode, tabID != besideTabID {
+                split(tabID, beside: besideTabID)
+            } else {
+                select(tabID)
+            }
         case let .command(id):
             CommandCatalog.perform(id, in: self)
         }
@@ -837,22 +848,28 @@ final class BrowserWindow {
         case let .splitPane(besideTabID):
             guard let tab = store.openTab(url: url, in: state.selectedSpaceID) else { return }
             tab.host = self
-            let placement = splitPlacement
-            store.update { browser in
-                guard let split = browser.addToSplit(tab.id, with: besideTabID) else { return }
-                browser.updateSplit(split.id) { split in
-                    split.axis = placement.axis
-                    if placement.before, let index = split.tabs.firstIndex(where: { $0.id == tab.id }),
-                       let besideIndex = split.tabs.firstIndex(where: { $0.id == besideTabID }), index > besideIndex {
-                        split.tabs.insert(split.tabs.remove(at: index), at: besideIndex)
-                    }
-                    split.fractions = []
-                }
-            }
-            select(tab.id)
+            split(tab.id, beside: besideTabID)
         case .newTab:
             openNewTab(url)
         }
+    }
+
+    /// Shows `tabID` in a split view with `besideTabID`, on the side Split
+    /// View Options asked for.
+    private func split(_ tabID: Foundation.UUID, beside besideTabID: Foundation.UUID) {
+        let placement = splitPlacement
+        store.update { browser in
+            guard let split = browser.addToSplit(tabID, with: besideTabID) else { return }
+            browser.updateSplit(split.id) { split in
+                split.axis = placement.axis
+                if placement.before, let index = split.tabs.firstIndex(where: { $0.id == tabID }),
+                   let besideIndex = split.tabs.firstIndex(where: { $0.id == besideTabID }), index > besideIndex {
+                    split.tabs.insert(split.tabs.remove(at: index), at: besideIndex)
+                }
+                split.fractions = []
+            }
+        }
+        select(tabID)
     }
 
     /// Gives the keyboard to the shown browser.
