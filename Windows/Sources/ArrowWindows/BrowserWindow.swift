@@ -465,8 +465,9 @@ final class BrowserWindow {
     }
 
     private func updateSelectedTab() {
+        // The window keeps Arrow's name, as Arc's keeps "Arc" (Alt+Tab, the
+        // taskbar).
         let tab = selectedTab
-        window.title = tab.map { "\($0.displayTitle) - Arrow" } ?? "Arrow"
         backButton.isEnabled = tab?.canGoBack ?? false
         forwardButton.isEnabled = tab?.canGoForward ?? false
         reloadButton.isEnabled = tab != nil

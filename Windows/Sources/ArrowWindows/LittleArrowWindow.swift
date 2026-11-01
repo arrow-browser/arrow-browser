@@ -103,7 +103,6 @@ final class LittleArrowWindow {
 
     private func update() {
         titleText.text = URLDisplay.short(tab.url)
-        window.title = "\(tab.displayTitle) - Little Arrow"
         let browser = tab.engine as? CEFBrowser
         guard browser !== shownBrowser, let browser else { return }
         shownBrowser = browser
