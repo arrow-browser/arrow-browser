@@ -23,6 +23,8 @@ final class SettingsWindow {
     private let sections = StackPanel()
     private let scroller = ScrollViewer()
     private var anchors: [Section: FrameworkElement] = [:]
+    /// The profile whose page shows (Arc's "Profiles / Default"), if any.
+    private var shownProfileID: Foundation.UUID?
     private var isDark: Bool
 
     /// Shows the settings window, at `section`.
@@ -55,6 +57,14 @@ final class SettingsWindow {
         scroller.content = sections
         let root = Grid()
         root.requestedTheme = isDark ? .dark : .light
+        // Arc's settings open with the keyboard on none of their controls
+        // (WinUI would frame the first button when opened from the
+        // keyboard): this empty control takes it; Tab goes on to the page.
+        let start = ContentControl()
+        start.isTabStop = true
+        start.useSystemFocusVisuals = false
+        root.children.append(start)
+        start.loaded.addHandler { _, _ in _ = try? start.focus(.programmatic) }
         root.children.append(scroller)
         window.content = root
         window.closed.addHandler { _, _ in SettingsWindow.shared = nil }
@@ -68,10 +78,19 @@ final class SettingsWindow {
     }
 
     private func rebuild() {
-        let settings = store.settings
-        let cloud = store.cloud
         sections.children.clear()
         anchors = [:]
+        if let id = shownProfileID, let profile = store.state.profiles.first(where: { $0.id == id }) {
+            buildProfilePage(profile)
+        } else {
+            buildMainPage()
+        }
+    }
+
+    private func buildMainPage() {
+        let settings = store.settings
+        let cloud = store.cloud
+        sections.spacing = 4
 
         // Account
         heading("Account", .account)
@@ -91,13 +110,16 @@ final class SettingsWindow {
             let name = "Profile \(store.state.profiles.count + 1)"
             store.update { _ = $0.createProfile(name: name) }
         })
+        // Arc's profile cards open the profile's page.
         for profile in store.state.profiles {
             let spaces = store.state.spaces.filter { $0.profileID == profile.id }.map(\.title)
             let detail = spaces.isEmpty ? "Not used by any Space"
                 : "This Profile is used by your \(spaces.joined(separator: ", ")) Space\(spaces.count > 1 ? "s" : "")"
-            let delete = button("Delete") { [weak self] in self?.store.update { $0.deleteProfile(profile.id) } }
-            delete.isEnabled = !profile.isDefault && spaces.isEmpty
-            card(profile.name, detail, trailing: delete)
+            let open = iconButton(Glyph.chevronRight, name: "Open \(profile.name)") { [weak self] in
+                self?.showProfile(profile.id)
+            }
+            let card = card(profile.name, detail, trailing: open)
+            card.tapped.addHandler { [weak self] _, _ in self?.showProfile(profile.id) }
         }
 
         // Sync
@@ -114,15 +136,6 @@ final class SettingsWindow {
             WindowBackdrop.current = WindowBackdrop.allCases[index]
             ArrowApp.applyBackdrop()
         })
-        card("Search engine", "Used by the Command Bar.", trailing: choice(SearchEngine.allCases.map(\.name),
-             selected: SearchEngine.allCases.firstIndex(of: settings.searchEngine) ?? 0) { [weak self] index in
-            self?.store.settings.searchEngine = SearchEngine.allCases[index]
-        })
-        card("Archive tabs after", "Today tabs not used for this long are archived.",
-             trailing: choice(ArchiveInterval.allCases.map(\.title),
-                              selected: ArchiveInterval.allCases.firstIndex(of: settings.archiveInterval) ?? 0) { [weak self] index in
-            self?.store.settings.archiveInterval = ArchiveInterval.allCases[index]
-        })
         card("Open a Peek window when clicking on links with Shift held", nil,
              trailing: toggle(settings.peekOnShiftClick) { [weak self] in self?.store.settings.peekOnShiftClick = $0 })
         card("Open a Peek window when clicking on links to other sites", "This only affects Favorites and Pinned tabs.",
@@ -138,8 +151,6 @@ final class SettingsWindow {
         })
         card("Block ads and trackers", nil,
              trailing: toggle(settings.adBlockerEnabled) { [weak self] in self?.store.settings.adBlockerEnabled = $0 })
-        card("Search suggestions", nil,
-             trailing: toggle(settings.searchSuggestions) { [weak self] in self?.store.settings.searchSuggestions = $0 })
         card("Sound effects", nil,
              trailing: toggle(settings.soundEffects) { [weak self] in self?.store.settings.soundEffects = $0 })
 
@@ -183,6 +194,230 @@ final class SettingsWindow {
         future.click.addHandler { [weak self] _, _ in self?.store.settings.autoEnableNewMaxFeatures = future.isChecked == true }
         sections.children.append(future)
 
+    }
+
+    // MARK: - Profile page
+
+    /// Arc's page of a profile: its search and related settings (Arrow's,
+    /// shared by all profiles, as in the macOS app's Profiles pane), Clear
+    /// Browsing Data and Delete. Arc's window grows to show it.
+    private func showProfile(_ id: Foundation.UUID) {
+        shownProfileID = id
+        try? window.appWindow.resize(SizeInt32(width: 700, height: 800))
+        rebuild()
+        _ = try? scroller.changeView(nil, 0, nil)
+    }
+
+    private func showMainPage() {
+        shownProfileID = nil
+        try? window.appWindow.resize(SizeInt32(width: 700, height: 600))
+        rebuild()
+    }
+
+    private func buildProfilePage(_ profile: Profile) {
+        let settings = store.settings
+        sections.spacing = 8
+
+        // "← Profiles / Default", Rename Profile at the right.
+        let header = Grid()
+        for width in [GridLength.auto, .auto, .star, .auto] {
+            let column = ColumnDefinition()
+            column.width = width
+            header.columnDefinitions.append(column)
+        }
+        // The arrow sits in the margin, the title where headings start.
+        header.margin = Thickness(left: -28, top: 0, right: 0, bottom: 8)
+        let back = iconButton(Glyph.back, name: "Back") { [weak self] in self?.showMainPage() }
+        back.width = 24
+        back.height = 24
+        back.verticalAlignment = .top
+        back.margin = Thickness(left: 0, top: 3, right: 4, bottom: 0)
+        header.children.append(back)
+        let path = StackPanel()
+        path.orientation = .horizontal
+        path.verticalAlignment = .top
+        path.margin = Thickness(left: 0, top: -1, right: 0, bottom: 0)
+        let profiles = TextBlock()
+        profiles.text = "Profiles"
+        profiles.foreground = accentText
+        profiles.tapped.addHandler { [weak self] _, _ in self?.showMainPage() }
+        let separator = TextBlock()
+        separator.text = "/"
+        separator.opacity = 0.5
+        separator.margin = Thickness(left: 8, top: 0, right: 9, bottom: 0)
+        let name = TextBlock()
+        name.text = profile.name
+        for text in [profiles, separator, name] {
+            text.fontSize = 20
+            text.fontWeight = FontWeight(weight: 600)
+            path.children.append(text)
+        }
+        try? Grid.setColumn(path, 1)
+        header.children.append(path)
+        let rename = button("Rename Profile") { [weak self] in self?.renameProfile(profile) }
+        rename.minWidth = 151
+        try? Grid.setColumn(rename, 3)
+        header.children.append(rename)
+        sections.children.append(header)
+
+        subheading("Search Settings")
+        card("Search Engine", nil, trailing: choice(SearchEngine.allCases.map(\.name),
+             selected: SearchEngine.allCases.firstIndex(of: settings.searchEngine) ?? 0) { [weak self] index in
+            self?.store.settings.searchEngine = SearchEngine.allCases[index]
+        })
+        card("Include search engine suggestions", nil,
+             trailing: toggle(settings.searchSuggestions) { [weak self] in self?.store.settings.searchSuggestions = $0 })
+
+        subheading("Related Settings")
+        // Arc marks the default choice.
+        let intervals = ArchiveInterval.allCases.map { $0 == ArrowSettings().archiveInterval ? "\($0.title) (default)" : $0.title }
+        card("Archive tabs after", nil, trailing: choice(intervals,
+             selected: ArchiveInterval.allCases.firstIndex(of: settings.archiveInterval) ?? 0) { [weak self] index in
+            self?.store.settings.archiveInterval = ArchiveInterval.allCases[index]
+        })
+        let locations: [DownloadLocation] = [.downloads, .ask]
+        card("Save downloads to", nil, trailing: choice(["Downloads", "Ask every time"],
+             selected: locations.firstIndex(of: settings.downloadLocation) ?? 0) { [weak self] index in
+            self?.store.settings.downloadLocation = locations[index]
+        })
+
+        // Arc's links, those Arrow has on Windows, and Delete at the right.
+        let footer = Grid()
+        footer.margin = Thickness(left: 0, top: 24, right: 0, bottom: 0)
+        for width in [GridLength.star, .auto] {
+            let column = ColumnDefinition()
+            column.width = width
+            footer.columnDefinitions.append(column)
+        }
+        let links = StackPanel()
+        links.spacing = 8
+        links.children.append(link("Notifications", glyph: Glyph.bell) {
+            _ = "ms-settings:notifications".withWideString { address in
+                "open".withWideString { verb in ShellExecuteW(nil, verb, address, nil, nil, SW_SHOWNORMAL) }
+            }
+        })
+        links.children.append(link("Clear Browsing Data", glyph: Glyph.delete) { [weak self] in self?.clearBrowsingData() })
+        footer.children.append(links)
+        let canDelete = !profile.isDefault && !store.state.spaces.contains { $0.profileID == profile.id }
+        let delete = link("Delete “\(profile.name)” Profile", glyph: nil, color: RGBColor(hex: 0xC42B1C)) { [weak self] in
+            self?.store.update { $0.deleteProfile(profile.id) }
+            self?.showMainPage()
+        }
+        delete.isEnabled = canDelete
+        delete.opacity = canDelete ? 1 : 0.5
+        delete.verticalAlignment = .bottom
+        delete.margin = Thickness(left: 0, top: 0, right: 12, bottom: 0)
+        try? Grid.setColumn(delete, 1)
+        footer.children.append(delete)
+        sections.children.append(footer)
+    }
+
+    private func subheading(_ title: String) {
+        let text = TextBlock()
+        text.text = title
+        text.fontSize = 14
+        text.fontWeight = FontWeight(weight: 600)
+        text.margin = Thickness(left: 0, top: sections.children.size <= 1 ? 0 : 8, right: 0, bottom: 0)
+        sections.children.append(text)
+    }
+
+    /// Arc's links under a profile's settings: an icon and a title, in the
+    /// accent color.
+    private func link(_ title: String, glyph: String?, color: RGBColor? = nil, action: @escaping () -> Void) -> Button {
+        let content = StackPanel()
+        content.orientation = .horizontal
+        content.spacing = 8
+        let brush = color.map { SolidColorBrush(Color($0)) } ?? accentText
+        if let glyph {
+            let icon = Glyph.view(glyph, size: 16)
+            icon.foreground = brush
+            content.children.append(icon)
+        }
+        let text = TextBlock()
+        text.text = title
+        text.fontSize = 12
+        text.fontWeight = FontWeight(weight: 600)
+        text.foreground = brush
+        text.verticalAlignment = .center
+        content.children.append(text)
+        let button = Button()
+        button.content = content
+        button.padding = Thickness()
+        button.minHeight = 0
+        button.background = SolidColorBrush(Color(a: 0, r: 0, g: 0, b: 0))
+        button.borderThickness = Thickness()
+        try? AutomationProperties.setName(button, title)
+        button.click.addHandler { _, _ in action() }
+        return button
+    }
+
+    private func iconButton(_ glyph: String, name: String, action: @escaping () -> Void) -> Button {
+        let button = Button()
+        button.content = Glyph.view(glyph, size: 14)
+        button.width = 32
+        button.height = 32
+        button.padding = Thickness()
+        button.background = SolidColorBrush(Color(a: 0, r: 0, g: 0, b: 0))
+        button.borderThickness = Thickness()
+        button.verticalAlignment = .center
+        try? AutomationProperties.setName(button, name)
+        button.click.addHandler { _, _ in action() }
+        return button
+    }
+
+    /// Links and the breadcrumb, in the accent's text color.
+    private var accentText: Brush {
+        (try? Application.current.resources.lookup("AccentTextFillColorPrimaryBrush") as? Brush)
+            ?? SolidColorBrush(Color(RGBColor(hex: 0x003E92)))
+    }
+
+    private func renameProfile(_ profile: Profile) {
+        let name = TextBox()
+        name.text = profile.name
+        try? name.selectAll()
+        let dialog = ContentDialog()
+        dialog.xamlRoot = window.content.xamlRoot
+        dialog.title = "Rename Profile"
+        dialog.content = name
+        dialog.primaryButtonText = "Rename"
+        dialog.closeButtonText = "Cancel"
+        dialog.defaultButton = .primary
+        dialog.requestedTheme = isDark ? .dark : .light
+        dialog.primaryButtonClick.addHandler { [weak self] _, _ in
+            let title = name.text.trimmingCharacters(in: .whitespaces)
+            guard !title.isEmpty else { return }
+            self?.store.update { $0.renameProfile(profile.id, to: title) }
+            self?.rebuild()
+        }
+        _ = try? dialog.showAsync()
+    }
+
+    /// Chromium's choices, for every profile and all time.
+    private func clearBrowsingData() {
+        let options = StackPanel()
+        options.spacing = 4
+        let history = CheckBox()
+        history.content = "Browsing history"
+        let cookies = CheckBox()
+        cookies.content = "Cookies and other site data"
+        let cache = CheckBox()
+        cache.content = "Cached images and files"
+        for box in [history, cookies, cache] {
+            box.isChecked = true
+            options.children.append(box)
+        }
+        let dialog = ContentDialog()
+        dialog.xamlRoot = window.content.xamlRoot
+        dialog.title = "Clear Browsing Data"
+        dialog.content = options
+        dialog.primaryButtonText = "Clear Data"
+        dialog.closeButtonText = "Cancel"
+        dialog.requestedTheme = isDark ? .dark : .light
+        dialog.primaryButtonClick.addHandler { [weak self] _, _ in
+            self?.store.clearBrowsingData(since: nil, history: history.isChecked == true, cookies: cookies.isChecked == true,
+                                          cache: cache.isChecked == true)
+        }
+        _ = try? dialog.showAsync()
     }
 
     /// Arc's card: the user's name, a title earned by browsing, and the day
@@ -339,7 +574,8 @@ final class SettingsWindow {
 
     /// A Windows 11 settings card: an icon, a title, a description, a
     /// control.
-    private func card(_ title: String, _ detail: String?, icon: String? = nil, trailing: UIElement) {
+    @discardableResult
+    private func card(_ title: String, _ detail: String?, icon: String? = nil, trailing: UIElement) -> Grid {
         let card = Grid()
         card.padding = Thickness(left: 24, top: 14, right: 16, bottom: 14)
         card.minHeight = 66
@@ -385,6 +621,7 @@ final class SettingsWindow {
         try? Grid.setColumn(trailing as? FrameworkElement, 1)
         card.children.append(trailing)
         sections.children.append(card)
+        return card
     }
 
     private func button(_ title: String, isAccent: Bool = false, action: @escaping () -> Void) -> Button {
