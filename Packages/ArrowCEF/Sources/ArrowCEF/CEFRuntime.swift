@@ -20,6 +20,10 @@ public final class CEFRuntime: @unchecked Sendable {
     /// Extra command-line switches of the browser process (set before
     /// `initialize()`), e.g. `load-extension`.
     public var browserSwitches: [(name: String, value: String?)] = []
+    /// Runs Chromium's Media Router, behind View ▸ Cast (set before
+    /// `initialize()`). It looks for Cast devices with mDNS, which Windows'
+    /// firewall asks the user about: apps without Cast turn it off.
+    public var usesMediaRouter = true
     /// The app runs its own message loop and calls `doMessageLoopWork()` when
     /// `onScheduleMessagePumpWork` asks for it, instead of `runMessageLoop()`
     /// (set before `initialize()`). For apps whose UI toolkit owns the loop.
@@ -44,9 +48,13 @@ public final class CEFRuntime: @unchecked Sendable {
                       let runtime = CefHandler.owner(of: app, as: CEFRuntime.self) else { return }
                 // Picture-in-Picture for the automatic PiP of playing videos.
                 CEFRuntime.appendSwitch(commandLine, "enable-features", value: "DocumentPictureInPictureAPI")
-                // Cast device discovery (View ▸ Cast). Chromium otherwise waits for
-                // a gesture in its own Cast dialog, which CEF doesn't include.
-                CEFRuntime.appendSwitch(commandLine, "disable-features", value: "DelayMediaSinkDiscovery")
+                if runtime.usesMediaRouter {
+                    // Cast device discovery (View ▸ Cast). Chromium otherwise waits for
+                    // a gesture in its own Cast dialog, which CEF doesn't include.
+                    CEFRuntime.appendSwitch(commandLine, "disable-features", value: "DelayMediaSinkDiscovery")
+                } else {
+                    CEFRuntime.appendSwitch(commandLine, "disable-features", value: "MediaRouter")
+                }
                 #if os(Linux)
                 // Browsers are hosted in X11 windows (XWayland under Wayland):
                 // Chromium cannot embed its windows in a Wayland app's.
@@ -87,7 +95,15 @@ public final class CEFRuntime: @unchecked Sendable {
         }
     }
 
+    /// Appends a switch. A value of `enable-features` or `disable-features`
+    /// joins the list already there (CEF's own, then Arrow's), which a second
+    /// switch would otherwise replace.
     private static func appendSwitch(_ commandLine: UnsafeMutablePointer<cef_command_line_t>, _ name: String, value: String? = nil) {
+        var value = value
+        if let added = value, name == "enable-features" || name == "disable-features" {
+            let current = withCefString(name) { String(cefUserFree: commandLine.pointee.get_switch_value?(commandLine, $0)) }
+            if !current.isEmpty { value = current + "," + added }
+        }
         withCefString(name) { name in
             if let value {
                 withCefString(value) { value in

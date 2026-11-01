@@ -63,9 +63,11 @@ final class ArrowApp {
             try? FileManager.default.removeItem(at: profile)
             runtime.rootCachePath = profile
         }
-        // Arc's thin scrollbars over the page, shown while scrolling (the
-        // value keeps the features ArrowCEF enables: the last one counts).
-        runtime.browserSwitches.append(("enable-features", "DocumentPictureInPictureAPI,FluentScrollbar,FluentOverlayScrollbar,OverlayScrollbar"))
+        // Arc's thin scrollbars over the page, shown while scrolling.
+        runtime.browserSwitches.append(("enable-features", "FluentScrollbar,FluentOverlayScrollbar,OverlayScrollbar"))
+        // No Cast, as in Arc for Windows: Chromium's Media Router would look
+        // for devices with mDNS and get the firewall to ask about Arrow.
+        runtime.usesMediaRouter = false
         // Links opened from other apps while Arrow runs: Chromium hands the
         // new launch over to this process.
         runtime.onRelaunch = { arguments in

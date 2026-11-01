@@ -31,6 +31,9 @@ Its interface is Arc's on Windows, in look and in function:
 
 Tabs and the selection are saved like on macOS; saved logins, payment cards
 and Arrow Cloud's secrets go to the Credential Manager.
+As in Arc for Windows, there is no Cast: Chromium's Media Router is off, so
+it doesn't look for devices on the network and Windows' firewall never asks
+about Arrow.
 
 ## Requirements
 
