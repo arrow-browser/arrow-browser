@@ -1,34 +1,41 @@
 import ArrowCEF
+import ArrowCore
 import ArrowKit
 import CRT
 import Foundation
 import WinSDK
 import WinUI
 
-/// The app: one window per address passed on the command line, or one with
-/// the start page.
+/// The app: a browser window on ArrowCore's store. Addresses passed on the
+/// command line open as tabs.
 ///
 ///   Arrow [url…]          browses
-///   Arrow --smoke [url]   loads the page, prints its title and quits with
-///                         status 0, or 1 if it does not load (CI, with
-///                         bootstrapc.exe as Arrow.exe)
+///   Arrow --smoke [url]   with a new profile, opens the page (a built-in
+///                         one by default) in a tab, prints its title and
+///                         quits with status 0, or 1 if it does not load (CI,
+///                         with bootstrapc.exe as Arrow.exe)
 @MainActor
 final class ArrowApp {
+    /// The version of the macOS app (its MARKETING_VERSION, in project.yml).
+    static let version = "1.0.0"
+
     static let startPage = "data:text/html;charset=utf-8,"
         + "<title>Arrow</title><h1>Arrow</h1><p>Arrow for Windows: WinUI 3 and Chromium.</p>"
         .addingPercentEncoding(withAllowedCharacters: .alphanumerics)!
 
     fileprivate static var current: ArrowApp?
 
+    private let store: BrowserStore
     private let addresses: [String]
     private let smoke: Bool
     private let sandboxed: Bool
     private var windows: [BrowserWindow] = []
     private var succeeded = false
 
-    private init(arguments: [String], sandboxed: Bool) {
+    private init(store: BrowserStore, arguments: [String], smoke: Bool, sandboxed: Bool) {
+        self.store = store
         addresses = URLInput.commandLineAddresses(arguments)
-        smoke = arguments.contains("--smoke")
+        self.smoke = smoke
         self.sandboxed = sandboxed
     }
 
@@ -49,6 +56,13 @@ final class ArrowApp {
         // WinUI runs in a single-threaded apartment.
         RoInitialize(RO_INIT_SINGLETHREADED)
 
+        let arguments = Array(CommandLine.arguments.dropFirst())
+        let smoke = arguments.contains("--smoke")
+        if smoke {
+            let profile = FileManager.default.temporaryDirectory.appendingPathComponent("arrow-smoke", isDirectory: true)
+            try? FileManager.default.removeItem(at: profile)
+            runtime.rootCachePath = profile
+        }
         // WinUI runs the message loop.
         let pump = MessagePump()
         runtime.usesExternalMessagePump = true
@@ -57,7 +71,8 @@ final class ArrowApp {
             print("arrow: CEF failed to initialize")
             return 1
         }
-        let app = ArrowApp(arguments: Array(CommandLine.arguments.dropFirst()), sandboxed: sandboxInfo != nil)
+        let app = ArrowApp(store: BrowserStore(engine: runtime, platform: WindowsPlatform()), arguments: arguments,
+                           smoke: smoke, sandboxed: sandboxInfo != nil)
         current = app
         do {
             try Application.start { _ in _ = ArrowApplication() }
@@ -65,50 +80,53 @@ final class ArrowApp {
             print("arrow: WinUI failed to start: \(error)")
         }
         current = nil
+        // Foundation writes the defaults (window selection) only when asked on
+        // Windows.
+        UserDefaults.standard.synchronize()
         runtime.shutdown()
         pump.invalidate()
         return app.smoke && !app.succeeded ? 1 : 0
     }
 
     fileprivate func launched() {
-        for address in addresses.isEmpty ? [Self.startPage] : addresses {
-            do {
-                open(try BrowserWindow(url: address))
-            } catch {
-                print("arrow: the window failed to open: \(error)")
-            }
+        let window: BrowserWindow
+        do {
+            window = try BrowserWindow(store: store)
+        } catch {
+            print("arrow: the window failed to open: \(error)")
+            return
         }
-        if smoke {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 60) {
-                print("arrow: the page did not load within 60 seconds")
-                exit(1)
-            }
-        }
-    }
-
-    private func open(_ window: BrowserWindow) {
         windows.append(window)
         window.onClose = { [weak self, weak window] in
             self?.windows.removeAll { $0 === window }
         }
-        guard smoke else { return }
-        window.onLoad = { [weak self, weak window] url, httpStatusCode in
-            guard let self, let window, !succeeded else { return }
-            Task {
-                // A DevTools round trip, which also checks that main actor
-                // jobs run.
-                let title = await window.browser.evaluateJavaScript("document.title")
-                print("arrow: loaded \(url.prefix(60)) (HTTP \(httpStatusCode)), "
-                    + "title: \(title.map { "\($0)" } ?? "none"), hosted: \(window.isBrowserHosted ? "yes" : "no"), "
-                    + "sandbox: \(sandboxed ? "on" : "off")")
-                succeeded = title != nil && window.isBrowserHosted
-                window.close()
-            }
+        guard smoke else {
+            for address in addresses { window.openNewTab(address) }
+            return
         }
+        window.savesSelection = false
+        guard let tab = window.openNewTab(addresses.first ?? Self.startPage) else { return }
+        Task { await smokeTest(tab, in: window) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 60) {
+            print("arrow: the page did not load within 60 seconds")
+            exit(1)
+        }
+    }
+
+    private func smokeTest(_ tab: WebTab, in window: BrowserWindow) async {
+        while tab.isLoading || tab.engine == nil || tab.title.isEmpty {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        // A DevTools round trip, which also checks that main actor jobs run.
+        let title = await tab.engine?.evaluateJavaScript("document.title")
+        print("arrow: loaded \(tab.url.prefix(60)), title: \(title.map { "\($0)" } ?? "none"), "
+            + "hosted: \(window.isBrowserHosted ? "yes" : "no"), sandbox: \(sandboxed ? "on" : "off")")
+        succeeded = title != nil && window.isBrowserHosted
+        window.close()
     }
 }
 
-/// WinUI's application object, which opens the first windows once WinUI has
+/// WinUI's application object, which opens the first window once WinUI has
 /// started.
 final class ArrowApplication: XamlApplication {
     override func launched() {

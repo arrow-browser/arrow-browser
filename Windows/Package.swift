@@ -2,7 +2,7 @@
 import Foundation
 import PackageDescription
 
-// Arrow for Windows: a WinUI 3 app on ArrowKit and ArrowCEF.
+// Arrow for Windows: a WinUI 3 app on ArrowCore and ArrowCEF.
 //
 // generate-winrt.ps1 generates the WinRT projections (CWinRT,
 // WindowsFoundation, UWP, WinAppSDK, WinUI) before the first build, and
@@ -42,6 +42,7 @@ let package = Package(
             dependencies: [
                 "WindowsFoundation", "UWP", "WinAppSDK", "WinUI",
                 .product(name: "ArrowKit", package: "ArrowKit"),
+                .product(name: "ArrowCore", package: "ArrowKit"),
                 .product(name: "ArrowCEF", package: "ArrowCEF"),
             ],
             swiftSettings: cefHeaders

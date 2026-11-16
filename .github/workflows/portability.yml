@@ -146,7 +146,7 @@ jobs:
         shell: pwsh
         run: Get-Content "$env:TEMP\arrow-cef-shell\Logs\chromium.log" -ErrorAction SilentlyContinue
 
-  # The Windows app (Windows/): WinUI 3 window with one browser, sandboxed.
+  # The Windows app (Windows/): its window on ArrowCore, browsing sandboxed.
   arrow-windows:
     name: Arrow for Windows
     runs-on: windows-latest
@@ -190,4 +190,4 @@ jobs:
           if (-not (Select-String -Quiet 'sandbox: on' output.txt)) { exit 1 }
       - name: Show Chromium's log
         if: failure()
-        run: Get-Content "$env:LOCALAPPDATA/Arrow/Logs/chromium.log" -ErrorAction SilentlyContinue
+        run: Get-Content "$env:TEMP/arrow-smoke/Logs/chromium.log" -ErrorAction SilentlyContinue

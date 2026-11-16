@@ -136,8 +136,12 @@ Done when a window with one CEF browser runs on Windows and Linux.
   generating your own projections with swift-winrt: Arrow versions the list
   of WinUI and Windows App SDK types it uses (`Windows/projections.json`) and
   generates their projections before building.
-- Started in [`Windows/`](../Windows/README.md): a WinUI window with one
-  browser under a toolbar, sandboxed, run by CI.
+- Started in [`Windows/`](../Windows/README.md): a WinUI window on
+  ArrowCore's `BrowserStore` and `WindowState`, with a sidebar (navigation,
+  address field, the space's tabs, New Tab, the space switcher) and one
+  browser per tab, sandboxed, run by CI. `WindowsPlatform` implements
+  `Platform`; logins, cards and Arrow Cloud's secrets only last for the
+  session until it stores them in the Credential Manager.
   - The browser is a child window of the WinUI window's, kept over the area
     the XAML layout leaves it.
   - WinUI runs the message loop. CEF's external message pump runs its work
